@@ -1,63 +1,97 @@
--- =====================================================================
--- A CASA DO SALGADO - Banco de dados (PostgreSQL)
--- Baseado no modelo atual do grupo. NÃO altera o schema.prisma.
---
--- Uso:
---   createdb casa_do_salgado
---   psql -d casa_do_salgado -f criar_banco_casa_do_salgado.sql
--- =====================================================================
+// Schema Prisma - A Casa do Salgado
+// Espelha o banco criado pelo script db/init/01_schema.sql (PostgreSQL).
+// A URL de conexão fica no prisma7.config.ts (variável DATABASE_URL).
 
--- ---------- TIPOS ----------
-CREATE TYPE cargo_usuario  AS ENUM ('GESTOR', 'FUNCIONARIO');
-CREATE TYPE unidade_medida AS ENUM ('KG', 'G', 'L', 'ML', 'UN');
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
 
--- ---------- USUÁRIO ----------
-CREATE TABLE usuario (
-    id        SERIAL PRIMARY KEY,
-    nome      VARCHAR(50)  NOT NULL,
-    cargo     cargo_usuario NOT NULL,
-    senha     VARCHAR(100) NOT NULL,                 -- hash, nunca texto puro
-    criado_em TIMESTAMP    NOT NULL DEFAULT NOW(),
-    ativo     BOOLEAN      NOT NULL DEFAULT TRUE
-);
+datasource db {
+  provider = "postgresql"
+}
 
--- ---------- INGREDIENTES ----------
-CREATE TABLE ingredientes (
-    id             SERIAL PRIMARY KEY,
-    nome           VARCHAR(50)    NOT NULL UNIQUE,
-    unidade        unidade_medida NOT NULL,
-    custo_unitario NUMERIC(10,4)  NOT NULL CHECK (custo_unitario >= 0),  -- custo por 1 unidade de medida
-    atualizado_em  TIMESTAMP      NOT NULL DEFAULT NOW()
-);
+// ---------- ENUMS ----------
 
--- ---------- PRODUTOS ----------
-CREATE TABLE produtos (
-    id              SERIAL PRIMARY KEY,
-    nome            VARCHAR(50) NOT NULL,
-    ingredientes_id INT REFERENCES ingredientes(id),
-    preco_venda     NUMERIC(10,2) CHECK (preco_venda IS NULL OR preco_venda >= 0), -- preço final aprovado (sugerido ou ajustado)
-    ativo           BOOLEAN   NOT NULL DEFAULT TRUE,
-    atualizado_em   TIMESTAMP NOT NULL DEFAULT NOW()
-);
+enum CargoUsuario {
+  GESTOR
+  FUNCIONARIO
 
--- ---------- CUSTO FIXO (RF12 / RF13) ----------
-CREATE TABLE custo_fixo (
-    id            SERIAL PRIMARY KEY,
-    nome          VARCHAR(50)   NOT NULL UNIQUE,     -- ex.: Aluguel, Energia, Gás, Salários
-    valor_mensal  NUMERIC(10,2) NOT NULL CHECK (valor_mensal >= 0),
-    atualizado_em TIMESTAMP     NOT NULL DEFAULT NOW()
-);
+  @@map("cargo_usuario")
+}
 
--- ---------- HISTÓRICO DE CUSTO DO INGREDIENTE (RF10) ----------
-CREATE TABLE historico_custo_insumo (
-    id             SERIAL PRIMARY KEY,
-    insumo_id      INT NOT NULL REFERENCES ingredientes(id),   -- aponta para ingredientes.id
-    custo_anterior NUMERIC(10,4),
-    custo_novo     NUMERIC(10,4) NOT NULL,
-    usuario_id     INT NOT NULL REFERENCES usuario(id),
-    alterado_em    TIMESTAMP NOT NULL DEFAULT NOW()
-);
+enum UnidadeMedida {
+  KG
+  G
+  L
+  ML
+  UN
 
--- ---------- ÍNDICES ----------
-CREATE INDEX idx_produtos_ingrediente ON produtos(ingredientes_id);
-CREATE INDEX idx_hist_custo_insumo    ON historico_custo_insumo(insumo_id, alterado_em DESC);
+  @@map("unidade_medida")
+}
+
+// ---------- MODELS ----------
+
+model Usuario {
+  id        Int          @id @default(autoincrement())
+  nome      String       @db.VarChar(50)
+  cargo     CargoUsuario
+  senha     String       @db.VarChar(100) // hash, nunca texto puro
+  criadoEm  DateTime     @default(now()) @map("criado_em") @db.Timestamp(6)
+  ativo     Boolean      @default(true)
+
+  historicoCustos HistoricoCustoInsumo[]
+
+  @@map("usuario")
+}
+
+model Ingrediente {
+  id            Int           @id @default(autoincrement())
+  nome          String        @unique @db.VarChar(50)
+  unidade       UnidadeMedida
+  custoUnitario Decimal       @map("custo_unitario") @db.Decimal(10, 4) // custo por 1 unidade de medida
+  atualizadoEm  DateTime      @default(now()) @updatedAt @map("atualizado_em") @db.Timestamp(6)
+
+  produtos        Produto[]
+  historicoCustos HistoricoCustoInsumo[]
+
+  @@map("ingredientes")
+}
+
+model Produto {
+  id            Int          @id @default(autoincrement())
+  nome          String       @db.VarChar(50)
+  ingredienteId Int?         @map("ingredientes_id")
+  precoVenda    Decimal?     @map("preco_venda") @db.Decimal(10, 2) // preço final aprovado (sugerido ou ajustado)
+  ativo         Boolean      @default(true)
+  atualizadoEm  DateTime     @default(now()) @updatedAt @map("atualizado_em") @db.Timestamp(6)
+
+  ingrediente Ingrediente? @relation(fields: [ingredienteId], references: [id])
+
+  @@index([ingredienteId], map: "idx_produtos_ingrediente")
+  @@map("produtos")
+}
+
+model CustoFixo {
+  id           Int      @id @default(autoincrement())
+  nome         String   @unique @db.VarChar(50) // ex.: Aluguel, Energia, Gás, Salários
+  valorMensal  Decimal  @map("valor_mensal") @db.Decimal(10, 2)
+  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamp(6)
+
+  @@map("custo_fixo")
+}
+
+model HistoricoCustoInsumo {
+  id            Int      @id @default(autoincrement())
+  insumoId      Int      @map("insumo_id") // aponta para ingredientes.id
+  custoAnterior Decimal? @map("custo_anterior") @db.Decimal(10, 4)
+  custoNovo     Decimal  @map("custo_novo") @db.Decimal(10, 4)
+  usuarioId     Int      @map("usuario_id")
+  alteradoEm    DateTime @default(now()) @map("alterado_em") @db.Timestamp(6)
+
+  ingrediente Ingrediente @relation(fields: [insumoId], references: [id])
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id])
+
+  @@index([insumoId, alteradoEm(sort: Desc)], map: "idx_hist_custo_insumo")
+  @@map("historico_custo_insumo")
+}
