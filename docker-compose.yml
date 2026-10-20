@@ -21,7 +21,7 @@ services:
 
   # ---------- Backend (Node.js + Prisma) ----------
   backend:
-    build: ./backend
+    build: ./Back
     restart: unless-stopped
     depends_on:
       db:
