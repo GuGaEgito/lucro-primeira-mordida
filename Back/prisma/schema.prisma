@@ -1,6 +1,8 @@
 // Schema Prisma - A Casa do Salgado
 // Espelha o banco criado pelo script db/init/01_schema.sql (PostgreSQL).
 // A URL de conexão fica no prisma7.config.ts (variável DATABASE_URL).
+// Datas usam timestamptz (com fuso) e os valores em dinheiro têm CHECK >= 0 no banco;
+// o Prisma não descreve CHECK no schema, eles ficam na migration 20261020000000_tipos_e_restricoes.
 
 generator client {
   provider = "prisma-client"
@@ -33,12 +35,12 @@ enum UnidadeMedida {
 // ---------- MODELS ----------
 
 model Usuario {
-  id        Int          @id @default(autoincrement())
-  nome      String       @db.VarChar(50)
-  cargo     CargoUsuario
-  senha     String       @db.VarChar(100) // hash, nunca texto puro
-  criadoEm  DateTime     @default(now()) @map("criado_em") @db.Timestamp(6)
-  ativo     Boolean      @default(true)
+  id       Int          @id @default(autoincrement())
+  nome     String       @db.VarChar(50)
+  cargo    CargoUsuario
+  senha    String       @db.VarChar(100) // hash, nunca texto puro
+  criadoEm DateTime     @default(now()) @map("criado_em") @db.Timestamptz(6)
+  ativo    Boolean      @default(true)
 
   historicoCustos HistoricoCustoInsumo[]
 
@@ -50,7 +52,7 @@ model Ingrediente {
   nome          String        @unique @db.VarChar(50)
   unidade       UnidadeMedida
   custoUnitario Decimal       @map("custo_unitario") @db.Decimal(10, 4) // custo por 1 unidade de medida
-  atualizadoEm  DateTime      @default(now()) @updatedAt @map("atualizado_em") @db.Timestamp(6)
+  atualizadoEm  DateTime      @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   produtos        Produto[]
   historicoCustos HistoricoCustoInsumo[]
@@ -59,12 +61,12 @@ model Ingrediente {
 }
 
 model Produto {
-  id            Int          @id @default(autoincrement())
-  nome          String       @db.VarChar(50)
-  ingredienteId Int?         @map("ingredientes_id")
-  precoVenda    Decimal?     @map("preco_venda") @db.Decimal(10, 2) // preço final aprovado (sugerido ou ajustado)
-  ativo         Boolean      @default(true)
-  atualizadoEm  DateTime     @default(now()) @updatedAt @map("atualizado_em") @db.Timestamp(6)
+  id            Int      @id @default(autoincrement())
+  nome          String   @db.VarChar(50)
+  ingredienteId Int?     @map("ingredientes_id")
+  precoVenda    Decimal? @map("preco_venda") @db.Decimal(10, 2) // preço final aprovado (sugerido ou ajustado)
+  ativo         Boolean  @default(true)
+  atualizadoEm  DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   ingrediente Ingrediente? @relation(fields: [ingredienteId], references: [id])
 
@@ -76,7 +78,7 @@ model CustoFixo {
   id           Int      @id @default(autoincrement())
   nome         String   @unique @db.VarChar(50) // ex.: Aluguel, Energia, Gás, Salários
   valorMensal  Decimal  @map("valor_mensal") @db.Decimal(10, 2)
-  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamp(6)
+  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
   @@map("custo_fixo")
 }
@@ -87,11 +89,12 @@ model HistoricoCustoInsumo {
   custoAnterior Decimal? @map("custo_anterior") @db.Decimal(10, 4)
   custoNovo     Decimal  @map("custo_novo") @db.Decimal(10, 4)
   usuarioId     Int      @map("usuario_id")
-  alteradoEm    DateTime @default(now()) @map("alterado_em") @db.Timestamp(6)
+  alteradoEm    DateTime @default(now()) @map("alterado_em") @db.Timestamptz(6)
 
   ingrediente Ingrediente @relation(fields: [insumoId], references: [id])
   usuario     Usuario     @relation(fields: [usuarioId], references: [id])
 
   @@index([insumoId, alteradoEm(sort: Desc)], map: "idx_hist_custo_insumo")
+  @@index([usuarioId], map: "idx_hist_custo_usuario")
   @@map("historico_custo_insumo")
 }
