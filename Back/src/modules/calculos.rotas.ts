@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { RequestHandler, Router } from "express";
 import { z } from "zod";
 import { fichaTecnica, itemMix, numero, percentuaisPreco, produtoVenda } from "../shared/validacao";
 import {
@@ -25,9 +25,16 @@ import {
 // Valores em dinheiro e percentuais voltam como string ("1.10") para não perder centavos.
 export const calculosRotas = Router();
 
-calculosRotas.post("/ficha-tecnica", (req, res) => {
-  res.json(calcularCustoFicha(fichaTecnica.parse(req.body)));
-});
+// Valida o corpo com o schema e responde com o resultado do cálculo.
+// Erros de validação (ZodError) e de cálculo (ErroCalculo) seguem para o tratador de erros do app.
+function calculo<T extends z.ZodType>(
+  schema: T,
+  calcular: (body: z.infer<T>) => unknown,
+): RequestHandler {
+  return (req, res) => {
+    res.json(calcular(schema.parse(req.body)));
+  };
+}
 
 const custosFixosBody = z.object({
   custos: z.array(z.object({ nome: z.string().min(1), valorMensal: numero })),
@@ -35,40 +42,12 @@ const custosFixosBody = z.object({
   producaoMensal: numero.optional(),
 });
 
-calculosRotas.post("/custos-fixos", (req, res) => {
-  const body = custosFixosBody.parse(req.body);
-  const total = totalCustosFixos(body.custos);
-  res.json({
-    total,
-    percentualSobreFaturamento:
-      body.faturamentoMensal === undefined
-        ? null
-        : percentualCustoFixo(total, body.faturamentoMensal),
-    porUnidade:
-      body.producaoMensal === undefined ? null : custoFixoPorUnidade(total, body.producaoMensal),
-  });
-});
-
-calculosRotas.post("/markup", (req, res) => {
-  res.json(calcularMarkup(percentuaisPreco.parse(req.body)));
-});
-
 const precoSugeridoBody = z.object({ custoUnitario: numero, percentuais: percentuaisPreco });
-
-calculosRotas.post("/preco-sugerido", (req, res) => {
-  const body = precoSugeridoBody.parse(req.body);
-  res.json(calcularPrecoSugerido(body.custoUnitario, body.percentuais));
-});
 
 const analisePrecoBody = z.object({
   precoVenda: numero,
   custoUnitario: numero,
   percentuais: percentuaisPreco.omit({ lucro: true }),
-});
-
-calculosRotas.post("/analise-preco", (req, res) => {
-  const body = analisePrecoBody.parse(req.body);
-  res.json(analisarPreco(body.precoVenda, body.custoUnitario, body.percentuais));
 });
 
 const pontoEquilibrioBody = z.object({
@@ -77,39 +56,10 @@ const pontoEquilibrioBody = z.object({
   produto: produtoVenda,
 });
 
-calculosRotas.post("/ponto-equilibrio", (req, res) => {
-  const body = pontoEquilibrioBody.parse(req.body);
-  res.json(
-    calcularPontoEquilibrio(
-      body.custosFixosMensais,
-      body.produto,
-      body.percentualDespesasVariaveis,
-    ),
-  );
-});
-
 const mixBody = z.object({
   custosFixosMensais: numero,
   percentualDespesasVariaveis: numero,
   itens: z.array(itemMix).min(1),
-});
-
-calculosRotas.post("/ponto-equilibrio/mix", (req, res) => {
-  const body = mixBody.parse(req.body);
-  res.json(
-    calcularPontoEquilibrioMix(
-      body.custosFixosMensais,
-      body.itens,
-      body.percentualDespesasVariaveis,
-    ),
-  );
-});
-
-calculosRotas.post("/simulacoes/resultado-mensal", (req, res) => {
-  const body = mixBody.parse(req.body);
-  res.json(
-    simularResultadoMensal(body.custosFixosMensais, body.itens, body.percentualDespesasVariaveis),
-  );
 });
 
 const reajusteBody = z.object({
@@ -118,7 +68,67 @@ const reajusteBody = z.object({
   percentuais: percentuaisPreco.optional(),
 });
 
-calculosRotas.post("/simulacoes/reajuste", (req, res) => {
-  const body = reajusteBody.parse(req.body);
-  res.json(simularReajusteIngredientes(body.ficha, body.reajustes, body.percentuais));
-});
+calculosRotas.post("/ficha-tecnica", calculo(fichaTecnica, calcularCustoFicha));
+
+calculosRotas.post(
+  "/custos-fixos",
+  calculo(custosFixosBody, ({ custos, faturamentoMensal, producaoMensal }) => {
+    const total = totalCustosFixos(custos);
+    return {
+      total,
+      percentualSobreFaturamento:
+        faturamentoMensal === undefined ? null : percentualCustoFixo(total, faturamentoMensal),
+      porUnidade: producaoMensal === undefined ? null : custoFixoPorUnidade(total, producaoMensal),
+    };
+  }),
+);
+
+calculosRotas.post("/markup", calculo(percentuaisPreco, calcularMarkup));
+
+calculosRotas.post(
+  "/preco-sugerido",
+  calculo(precoSugeridoBody, (body) => calcularPrecoSugerido(body.custoUnitario, body.percentuais)),
+);
+
+calculosRotas.post(
+  "/analise-preco",
+  calculo(analisePrecoBody, (body) =>
+    analisarPreco(body.precoVenda, body.custoUnitario, body.percentuais),
+  ),
+);
+
+calculosRotas.post(
+  "/ponto-equilibrio",
+  calculo(pontoEquilibrioBody, (body) =>
+    calcularPontoEquilibrio(
+      body.custosFixosMensais,
+      body.produto,
+      body.percentualDespesasVariaveis,
+    ),
+  ),
+);
+
+calculosRotas.post(
+  "/ponto-equilibrio/mix",
+  calculo(mixBody, (body) =>
+    calcularPontoEquilibrioMix(
+      body.custosFixosMensais,
+      body.itens,
+      body.percentualDespesasVariaveis,
+    ),
+  ),
+);
+
+calculosRotas.post(
+  "/simulacoes/resultado-mensal",
+  calculo(mixBody, (body) =>
+    simularResultadoMensal(body.custosFixosMensais, body.itens, body.percentualDespesasVariaveis),
+  ),
+);
+
+calculosRotas.post(
+  "/simulacoes/reajuste",
+  calculo(reajusteBody, (body) =>
+    simularReajusteIngredientes(body.ficha, body.reajustes, body.percentuais),
+  ),
+);

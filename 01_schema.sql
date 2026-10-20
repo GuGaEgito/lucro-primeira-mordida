@@ -17,7 +17,7 @@ CREATE TABLE usuario (
     nome      VARCHAR(50)  NOT NULL,
     cargo     cargo_usuario NOT NULL,
     senha     VARCHAR(100) NOT NULL,                 -- hash, nunca texto puro
-    criado_em TIMESTAMP    NOT NULL DEFAULT NOW(),
+    criado_em TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     ativo     BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
@@ -27,7 +27,7 @@ CREATE TABLE ingredientes (
     nome           VARCHAR(50)    NOT NULL UNIQUE,
     unidade        unidade_medida NOT NULL,
     custo_unitario NUMERIC(10,4)  NOT NULL CHECK (custo_unitario >= 0),  -- custo por 1 unidade de medida
-    atualizado_em  TIMESTAMP      NOT NULL DEFAULT NOW()
+    atualizado_em  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
 
 -- ---------- PRODUTOS ----------
@@ -37,7 +37,7 @@ CREATE TABLE produtos (
     ingredientes_id INT REFERENCES ingredientes(id),
     preco_venda     NUMERIC(10,2) CHECK (preco_venda IS NULL OR preco_venda >= 0), -- preço final aprovado (sugerido ou ajustado)
     ativo           BOOLEAN   NOT NULL DEFAULT TRUE,
-    atualizado_em   TIMESTAMP NOT NULL DEFAULT NOW()
+    atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ---------- CUSTO FIXO (RF12 / RF13) ----------
@@ -45,19 +45,20 @@ CREATE TABLE custo_fixo (
     id            SERIAL PRIMARY KEY,
     nome          VARCHAR(50)   NOT NULL UNIQUE,     -- ex.: Aluguel, Energia, Gás, Salários
     valor_mensal  NUMERIC(10,2) NOT NULL CHECK (valor_mensal >= 0),
-    atualizado_em TIMESTAMP     NOT NULL DEFAULT NOW()
+    atualizado_em TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- ---------- HISTÓRICO DE CUSTO DO INGREDIENTE (RF10) ----------
 CREATE TABLE historico_custo_insumo (
     id             SERIAL PRIMARY KEY,
     insumo_id      INT NOT NULL REFERENCES ingredientes(id),   -- aponta para ingredientes.id
-    custo_anterior NUMERIC(10,4),
-    custo_novo     NUMERIC(10,4) NOT NULL,
+    custo_anterior NUMERIC(10,4) CHECK (custo_anterior >= 0),
+    custo_novo     NUMERIC(10,4) NOT NULL CHECK (custo_novo >= 0),
     usuario_id     INT NOT NULL REFERENCES usuario(id),
-    alterado_em    TIMESTAMP NOT NULL DEFAULT NOW()
+    alterado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ---------- ÍNDICES ----------
 CREATE INDEX idx_produtos_ingrediente ON produtos(ingredientes_id);
 CREATE INDEX idx_hist_custo_insumo    ON historico_custo_insumo(insumo_id, alterado_em DESC);
+CREATE INDEX idx_hist_custo_usuario   ON historico_custo_insumo(usuario_id);

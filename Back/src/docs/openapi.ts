@@ -379,14 +379,42 @@ export const openapi = {
           },
         },
       },
-      Erro: { type: "object", properties: { erro: { type: "string" } } },
+      Erro: {
+        type: "object",
+        required: ["codigo", "erro"],
+        properties: {
+          codigo: {
+            type: "string",
+            enum: [
+              "DADOS_INVALIDOS",
+              "JSON_INVALIDO",
+              "CORPO_MUITO_GRANDE",
+              "ERRO_CALCULO",
+              "ROTA_NAO_ENCONTRADA",
+              "ERRO_INTERNO",
+            ],
+            description: "Código fixo para o front tratar o erro",
+          },
+          erro: { type: "string", description: "Mensagem para mostrar ao usuário" },
+          detalhes: {
+            type: "array",
+            description: "Só em DADOS_INVALIDOS: o campo com problema e o motivo",
+            items: {
+              type: "object",
+              properties: { campo: { type: "string" }, mensagem: { type: "string" } },
+            },
+          },
+        },
+      },
     },
     responses: {
       DadosInvalidos: {
         description: "Corpo da requisição inválido (campo faltando ou com formato errado)",
         content: {
           "application/json": {
+            schema: ref("Erro"),
             example: {
+              codigo: "DADOS_INVALIDOS",
               erro: "Dados inválidos",
               detalhes: [{ campo: "rendimento", mensagem: "Invalid input" }],
             },
@@ -398,7 +426,10 @@ export const openapi = {
         content: {
           "application/json": {
             schema: ref("Erro"),
-            example: { erro: "Rendimento da receita deve ser maior que zero" },
+            example: {
+              codigo: "ERRO_CALCULO",
+              erro: "Rendimento da receita deve ser maior que zero",
+            },
           },
         },
       },

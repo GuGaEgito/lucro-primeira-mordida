@@ -133,6 +133,7 @@ describe("API", () => {
       .post("/api/calculos/ficha-tecnica")
       .send({ rendimento: "abc", itens: [] })
       .expect(400);
+    assert.equal(res.body.codigo, "DADOS_INVALIDOS");
     assert.equal(res.body.erro, "Dados inválidos");
     assert.ok(res.body.detalhes.some((d: { campo: string }) => d.campo === "rendimento"));
   });
@@ -142,7 +143,7 @@ describe("API", () => {
       .post("/api/calculos/markup")
       .set("Content-Type", "application/json")
       .send("{ruim")
-      .expect(400, { erro: "JSON inválido no corpo da requisição" });
+      .expect(400, { codigo: "JSON_INVALIDO", erro: "JSON inválido no corpo da requisição" });
   });
 
   it("devolve 422 quando o cálculo não é possível", async () => {
@@ -150,10 +151,25 @@ describe("API", () => {
       .post("/api/calculos/markup")
       .send({ custoFixo: 50, despesasVariaveis: 30, lucro: 30 })
       .expect(422);
+    assert.equal(res.body.codigo, "ERRO_CALCULO");
     assert.match(res.body.erro, /menor que 100%/);
   });
 
   it("devolve 404 para rota inexistente", async () => {
-    await request(app).get("/api/nao-existe").expect(404, { erro: "Rota não encontrada" });
+    await request(app)
+      .get("/api/nao-existe")
+      .expect(404, { codigo: "ROTA_NAO_ENCONTRADA", erro: "Rota não encontrada" });
+  });
+
+  it("devolve 413 para corpo grande demais", async () => {
+    await request(app)
+      .post("/api/calculos/markup")
+      .send({ custoFixo: 20, despesasVariaveis: 10, lucro: 15, extra: "x".repeat(200_000) })
+      .expect(413, { codigo: "CORPO_MUITO_GRANDE", erro: "Corpo da requisição muito grande" });
+  });
+
+  it("não expõe o cabeçalho X-Powered-By", async () => {
+    const res = await request(app).get("/health").expect(200);
+    assert.equal(res.headers["x-powered-by"], undefined);
   });
 });
