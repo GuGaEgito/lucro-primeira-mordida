@@ -1,16 +1,9 @@
 import "dotenv/config";
-import express from "express";
-
-const app = express();
-
-app.use(express.json());
-
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
+import { criarApp } from "./app";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
-app.listen(PORT, () => {
+criarApp().listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Documentação da API: http://localhost:${PORT}/api/docs`);
 });

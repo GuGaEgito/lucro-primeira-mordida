@@ -109,3 +109,25 @@ O passo 6 não foi executado ou falhou. Rode-o de novo e leia a mensagem que apa
 
 **Nada resolveu**
 Rode `docker compose down -v`, apague o `Back/.env`, e refaça tudo a partir do passo 3. Se ainda assim falhar, mande no grupo o texto completo do erro.
+---
+
+## Como rodar a API (back-end)
+
+Dentro da pasta `Back`:
+```
+npm install
+npm run dev
+```
+A API sobe em `http://localhost:3000`. Os cálculos não precisam do banco ligado.
+
+- **Documentação das rotas (Swagger):** `http://localhost:3000/api/docs` — dá para testar cada rota pelo navegador.
+- **Especificação OpenAPI (para o front gerar o cliente):** `http://localhost:3000/api/openapi.json`
+- **Testes:** `npm test`
+
+### Para quem vai fazer o front-end
+
+- Todas as rotas de cálculo são `POST /api/calculos/...` com corpo em JSON.
+- Percentuais vão de 0 a 100 (`10` = 10%).
+- Valores decimais podem ser enviados como número ou texto (`"1.50"`) e **voltam sempre como texto** (`"1.10"`), para não perder centavos.
+- Erros voltam como `{ "erro": "mensagem" }`: `400` para dados inválidos (com a lista `detalhes` dos campos), `422` quando o cálculo não é possível (ex.: rendimento zero) e `404` para rota inexistente.
+- O CORS libera os endereços listados em `CORS_ORIGIN` no `Back/.env` (ex.: `http://localhost:5173`).
