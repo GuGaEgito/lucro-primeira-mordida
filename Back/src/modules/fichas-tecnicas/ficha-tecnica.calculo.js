@@ -1,51 +1,24 @@
-import {
+const {
   Decimal,
   dec,
   dinheiro,
   ErroCalculo,
   exigirNaoNegativo,
   exigirPositivo,
-  NumeroEntrada,
-} from "../../shared/numeros";
-import { converterUnidade, UnidadeMedida } from "../../shared/unidades";
+} = require("../../shared/numeros");
+const { converterUnidade } = require("../../shared/unidades");
 
-// Um item da ficha técnica: quanto de um ingrediente entra na receita.
-export interface ItemFicha {
-  ingredienteId: number;
-  nome?: string;
-  // Custo por 1 unidade de medida do cadastro (ingredientes.custo_unitario).
-  custoUnitario: NumeroEntrada;
-  unidadeCadastro: UnidadeMedida;
-  // Quantidade usada na receita (peso líquido) e a unidade em que foi informada.
-  quantidade: NumeroEntrada;
-  unidadeReceita: UnidadeMedida;
-  // Fator de correção (peso bruto / peso líquido) para perdas no preparo. Padrão 1.
-  fatorCorrecao?: NumeroEntrada;
-}
-
-export interface FichaTecnica {
-  itens: ItemFicha[];
-  // Quantos salgados a receita rende.
-  rendimento: NumeroEntrada;
-}
-
-export interface CustoItem {
-  ingredienteId: number;
-  nome?: string;
-  quantidadeBruta: Decimal; // na unidade do cadastro
-  custo: Decimal;
-}
-
-export interface CustoFicha {
-  itens: CustoItem[];
-  custoTotalReceita: Decimal;
-  custoPorUnidade: Decimal;
-}
+// A ficha técnica é { itens, rendimento }, onde rendimento é quantos salgados a receita rende.
+// Cada item diz quanto de um ingrediente entra na receita:
+// - custoUnitario: custo por 1 unidade de medida do cadastro (ingredientes.custo_unitario);
+// - unidadeCadastro: unidade em que o ingrediente foi cadastrado;
+// - quantidade e unidadeReceita: quantidade usada na receita (peso líquido) e a unidade em que foi informada;
+// - fatorCorrecao (opcional, padrão 1): peso bruto / peso líquido, para perdas no preparo.
 
 // Custo de um ingrediente na receita:
 // quantidade bruta = quantidade líquida x fator de correção (convertida para a unidade do cadastro)
 // custo = quantidade bruta x custo unitário
-export function calcularCustoItem(item: ItemFicha): CustoItem {
+function calcularCustoItem(item) {
   const quantidade = dec(item.quantidade);
   const custoUnitario = dec(item.custoUnitario);
   const fatorCorrecao = dec(item.fatorCorrecao ?? 1);
@@ -63,13 +36,13 @@ export function calcularCustoItem(item: ItemFicha): CustoItem {
   return {
     ingredienteId: item.ingredienteId,
     nome: item.nome,
-    quantidadeBruta,
+    quantidadeBruta, // na unidade do cadastro
     custo: quantidadeBruta.mul(custoUnitario),
   };
 }
 
 // Custo da receita inteira e de cada salgado (custo total / rendimento).
-export function calcularCustoFicha(ficha: FichaTecnica): CustoFicha {
+function calcularCustoFicha(ficha) {
   const rendimento = dec(ficha.rendimento);
   exigirPositivo(rendimento, "Rendimento da receita");
 
@@ -82,3 +55,5 @@ export function calcularCustoFicha(ficha: FichaTecnica): CustoFicha {
     custoPorUnidade: custoTotalReceita.div(rendimento).toDecimalPlaces(4),
   };
 }
+
+module.exports = { calcularCustoItem, calcularCustoFicha };

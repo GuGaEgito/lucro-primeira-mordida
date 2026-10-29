@@ -1,50 +1,19 @@
-import {
+const {
   Decimal,
   dec,
   dinheiro,
   ErroCalculo,
   exigirNaoNegativo,
   exigirPositivo,
-  NumeroEntrada,
   percentual,
-} from "../../shared/numeros";
+} = require("../../shared/numeros");
 
-// Percentuais sobre o preço de venda (8 = 8%).
-export interface PercentuaisPreco {
-  // Peso dos custos fixos no faturamento (ver percentualCustoFixo).
-  custoFixo: NumeroEntrada;
-  // Despesas que acompanham cada venda: impostos (ex.: Simples), taxa de cartão, comissão, delivery.
-  despesasVariaveis: NumeroEntrada;
-  // Lucro desejado.
-  lucro: NumeroEntrada;
-}
+// Percentuais sobre o preço de venda (8 = 8%):
+// - custoFixo: peso dos custos fixos no faturamento (ver percentualCustoFixo);
+// - despesasVariaveis: despesas que acompanham cada venda: impostos (ex.: Simples), taxa de cartão, comissão, delivery;
+// - lucro: lucro desejado.
 
-export interface Markup {
-  divisor: Decimal;
-  multiplicador: Decimal;
-}
-
-export interface PrecoSugerido extends Markup {
-  custoUnitario: Decimal;
-  precoSugerido: Decimal;
-}
-
-export interface AnalisePreco {
-  precoVenda: Decimal;
-  custoUnitario: Decimal;
-  despesasVariaveis: Decimal;
-  custoFixoRateado: Decimal;
-  // Margem de contribuição = preço - custo do salgado - despesas variáveis
-  margemContribuicao: Decimal;
-  margemContribuicaoPercentual: Decimal;
-  // Lucro = margem de contribuição - parte do custo fixo
-  lucroUnitario: Decimal;
-  margemLucroPercentual: Decimal;
-  // CMV % (food cost) = custo do salgado / preço
-  cmvPercentual: Decimal;
-}
-
-function exigirPercentual(valor: Decimal, campo: string): void {
+function exigirPercentual(valor, campo) {
   exigirNaoNegativo(valor, campo);
   if (valor.gte(100)) {
     throw new ErroCalculo(`${campo} deve ser menor que 100%`);
@@ -53,7 +22,7 @@ function exigirPercentual(valor: Decimal, campo: string): void {
 
 // Markup divisor = 1 - (% custo fixo + % despesas variáveis + % lucro) / 100
 // Markup multiplicador = 1 / markup divisor
-export function calcularMarkup(percentuais: PercentuaisPreco): Markup {
+function calcularMarkup(percentuais) {
   const custoFixo = dec(percentuais.custoFixo);
   const despesas = dec(percentuais.despesasVariaveis);
   const lucro = dec(percentuais.lucro);
@@ -74,10 +43,7 @@ export function calcularMarkup(percentuais: PercentuaisPreco): Markup {
 }
 
 // Preço sugerido = custo do salgado / markup divisor
-export function calcularPrecoSugerido(
-  custoUnitario: NumeroEntrada,
-  percentuais: PercentuaisPreco,
-): PrecoSugerido {
+function calcularPrecoSugerido(custoUnitario, percentuais) {
   const custo = dec(custoUnitario);
   exigirNaoNegativo(custo, "Custo unitário");
   const markup = calcularMarkup(percentuais);
@@ -89,11 +55,8 @@ export function calcularPrecoSugerido(
 }
 
 // Mostra o que um preço (sugerido ou ajustado pelo gestor) realmente deixa de margem e lucro.
-export function analisarPreco(
-  precoVenda: NumeroEntrada,
-  custoUnitario: NumeroEntrada,
-  percentuais: Pick<PercentuaisPreco, "custoFixo" | "despesasVariaveis">,
-): AnalisePreco {
+// Usa só custoFixo e despesasVariaveis dos percentuais.
+function analisarPreco(precoVenda, custoUnitario, percentuais) {
   const preco = dec(precoVenda);
   const custo = dec(custoUnitario);
   exigirPositivo(preco, "Preço de venda");
@@ -105,7 +68,9 @@ export function analisarPreco(
 
   const despesasVariaveis = preco.mul(percentual(pctDespesas));
   const custoFixoRateado = preco.mul(percentual(pctCustoFixo));
+  // Margem de contribuição = preço - custo do salgado - despesas variáveis
   const margemContribuicao = preco.sub(custo).sub(despesasVariaveis);
+  // Lucro = margem de contribuição - parte do custo fixo
   const lucroUnitario = margemContribuicao.sub(custoFixoRateado);
 
   return {
@@ -117,6 +82,9 @@ export function analisarPreco(
     margemContribuicaoPercentual: margemContribuicao.div(preco).mul(100).toDecimalPlaces(2),
     lucroUnitario: dinheiro(lucroUnitario),
     margemLucroPercentual: lucroUnitario.div(preco).mul(100).toDecimalPlaces(2),
+    // CMV % (food cost) = custo do salgado / preço
     cmvPercentual: custo.div(preco).mul(100).toDecimalPlaces(2),
   };
 }
+
+module.exports = { calcularMarkup, calcularPrecoSugerido, analisarPreco };

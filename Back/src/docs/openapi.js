@@ -7,23 +7,23 @@ const numero = {
 const decimal = { type: "string", description: 'Valor decimal como texto (ex.: "1.10")' };
 const unidade = { type: "string", enum: ["KG", "G", "L", "ML", "UN"] };
 
-function corpo(schema: object, exemplo: object) {
+function corpo(schema, exemplo) {
   return { required: true, content: { "application/json": { schema, example: exemplo } } };
 }
 
-function respostas(schema: object) {
+function respostas(schema) {
   return {
-    "200": { description: "Resultado do cálculo", content: { "application/json": { schema } } },
-    "400": { $ref: "#/components/responses/DadosInvalidos" },
-    "422": { $ref: "#/components/responses/ErroCalculo" },
+    200: { description: "Resultado do cálculo", content: { "application/json": { schema } } },
+    400: { $ref: "#/components/responses/DadosInvalidos" },
+    422: { $ref: "#/components/responses/ErroCalculo" },
   };
 }
 
-function objetoDecimais(campos: string[]) {
+function objetoDecimais(campos) {
   return { type: "object", properties: Object.fromEntries(campos.map((c) => [c, decimal])) };
 }
 
-const ref = (nome: string) => ({ $ref: `#/components/schemas/${nome}` });
+const ref = (nome) => ({ $ref: `#/components/schemas/${nome}` });
 
 const fichaExemplo = {
   rendimento: 40,
@@ -57,7 +57,7 @@ const mixExemplo = {
   ],
 };
 
-export const openapi = {
+const openapi = {
   openapi: "3.0.3",
   info: {
     title: "A Casa do Salgado - API",
@@ -73,7 +73,7 @@ export const openapi = {
         tags: ["Sistema"],
         summary: "Verifica se a API está no ar",
         responses: {
-          "200": {
+          200: {
             description: "OK",
             content: { "application/json": { example: { status: "ok" } } },
           },
@@ -436,3 +436,5 @@ export const openapi = {
     },
   },
 };
+
+module.exports = { openapi };

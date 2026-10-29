@@ -1,19 +1,13 @@
-import {
+const {
   Decimal,
   dec,
   dinheiro,
   exigirNaoNegativo,
   exigirPositivo,
-  NumeroEntrada,
-} from "../../shared/numeros";
+} = require("../../shared/numeros");
 
-// Linha da tabela custo_fixo (RF12 / RF13).
-export interface CustoFixoMensal {
-  nome: string;
-  valorMensal: NumeroEntrada;
-}
-
-export function totalCustosFixos(custos: CustoFixoMensal[]): Decimal {
+// Cada custo é uma linha da tabela custo_fixo (RF12 / RF13): { nome, valorMensal }.
+function totalCustosFixos(custos) {
   const total = custos.reduce((soma, custo) => {
     const valor = dec(custo.valorMensal);
     exigirNaoNegativo(valor, `Custo fixo "${custo.nome}"`);
@@ -24,10 +18,7 @@ export function totalCustosFixos(custos: CustoFixoMensal[]): Decimal {
 
 // Quanto o custo fixo pesa no faturamento, em % (usado no markup):
 // % custo fixo = custos fixos mensais / faturamento médio mensal x 100
-export function percentualCustoFixo(
-  custosFixosMensais: NumeroEntrada,
-  faturamentoMensal: NumeroEntrada,
-): Decimal {
+function percentualCustoFixo(custosFixosMensais, faturamentoMensal) {
   const custos = dec(custosFixosMensais);
   const faturamento = dec(faturamentoMensal);
   exigirNaoNegativo(custos, "Custos fixos mensais");
@@ -36,13 +27,12 @@ export function percentualCustoFixo(
 }
 
 // Alternativa por volume: custo fixo por salgado = custos fixos mensais / salgados produzidos no mês
-export function custoFixoPorUnidade(
-  custosFixosMensais: NumeroEntrada,
-  producaoMensal: NumeroEntrada,
-): Decimal {
+function custoFixoPorUnidade(custosFixosMensais, producaoMensal) {
   const custos = dec(custosFixosMensais);
   const producao = dec(producaoMensal);
   exigirNaoNegativo(custos, "Custos fixos mensais");
   exigirPositivo(producao, "Produção mensal");
   return custos.div(producao).toDecimalPlaces(4);
 }
+
+module.exports = { totalCustosFixos, percentualCustoFixo, custoFixoPorUnidade };

@@ -48,7 +48,7 @@ Abra o `Back/.env` e troque `COLE_AQUI_A_SENHA` pela **mesma senha** que você c
 **6. Instale as dependências e crie as tabelas** (ainda dentro da pasta `Back`)
 ```
 npm install
-npx prisma migrate deploy --config prisma7.config.ts
+npx prisma migrate deploy --config prisma7.config.js
 ```
 Deve terminar com a mensagem `All migrations have been successfully applied`.
 
@@ -73,7 +73,7 @@ Pronto, o banco está rodando.
 | Ver mensagens de erro do banco | `docker compose logs db` |
 | **Apagar tudo e recomeçar do zero** | `docker compose down -v` e depois repetir os passos 4 e 6 |
 
-> Depois de um `git pull` que traga mudanças no banco (pasta `Back/prisma/migrations`), rode de novo, dentro de `Back`: `npx prisma migrate deploy --config prisma7.config.ts`
+> Depois de um `git pull` que traga mudanças no banco (pasta `Back/prisma/migrations`), rode de novo, dentro de `Back`: `npx prisma migrate deploy --config prisma7.config.js`
 
 ---
 
@@ -118,7 +118,9 @@ Dentro da pasta `Back`:
 npm install
 npm run dev
 ```
-A API sobe em `http://localhost:3000`. Os cálculos não precisam do banco ligado.
+A API sobe em `http://localhost:3000` e reinicia sozinha quando você salva um arquivo. Os cálculos não precisam do banco ligado.
+
+O back-end é JavaScript puro (Node.js 22, CommonJS): não tem etapa de build. Em produção, use `npm start`. Para entender como ele funciona por dentro (rotas, fórmulas, banco, testes), leia o [README do back-end](Back/README.md).
 
 - **Documentação das rotas (Swagger):** `http://localhost:3000/api/docs` — dá para testar cada rota pelo navegador.
 - **Especificação OpenAPI (para o front gerar o cliente):** `http://localhost:3000/api/openapi.json`

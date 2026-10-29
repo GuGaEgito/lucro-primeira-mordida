@@ -1,35 +1,31 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
-import { ErroCalculo } from "../src/shared/numeros";
-import { converterUnidade } from "../src/shared/unidades";
-import { Decimal } from "../src/shared/numeros";
-import {
-  calcularCustoFicha,
-  FichaTecnica,
-} from "../src/modules/fichas-tecnicas/ficha-tecnica.calculo";
-import {
+const { describe, it } = require("node:test");
+const assert = require("node:assert/strict");
+const { Decimal, ErroCalculo } = require("../src/shared/numeros");
+const { converterUnidade } = require("../src/shared/unidades");
+const { calcularCustoFicha } = require("../src/modules/fichas-tecnicas/ficha-tecnica.calculo");
+const {
   custoFixoPorUnidade,
   percentualCustoFixo,
   totalCustosFixos,
-} from "../src/modules/custos/custos.calculo";
-import {
+} = require("../src/modules/custos/custos.calculo");
+const {
   analisarPreco,
   calcularMarkup,
   calcularPrecoSugerido,
-} from "../src/modules/precificacao/precificacao.calculo";
-import {
+} = require("../src/modules/precificacao/precificacao.calculo");
+const {
   calcularPontoEquilibrio,
   calcularPontoEquilibrioMix,
-} from "../src/modules/ponto-equilibrio/ponto-equilibrio.calculo";
-import {
+} = require("../src/modules/ponto-equilibrio/ponto-equilibrio.calculo");
+const {
   simularReajusteIngredientes,
   simularResultadoMensal,
-} from "../src/modules/simulacoes/simulacoes.calculo";
+} = require("../src/modules/simulacoes/simulacoes.calculo");
 
-const igual = (atual: Decimal, esperado: string) => assert.equal(atual.toString(), esperado);
+const igual = (atual, esperado) => assert.equal(atual.toString(), esperado);
 
 // Receita de coxinha que rende 40 unidades.
-const coxinha: FichaTecnica = {
+const coxinha = {
   rendimento: 40,
   itens: [
     {
@@ -216,7 +212,7 @@ describe("simulações", () => {
     igual(s.custoPorUnidadeAntes, "0.6025");
     igual(s.custoPorUnidadeDepois, "0.6525");
     igual(s.variacaoPercentual, "8.3");
-    igual(s.precoSugeridoAntes!, "1.1");
-    igual(s.precoSugeridoDepois!, "1.19");
+    igual(s.precoSugeridoAntes, "1.1");
+    igual(s.precoSugeridoDepois, "1.19");
   });
 });

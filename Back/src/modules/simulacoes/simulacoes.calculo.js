@@ -1,32 +1,9 @@
-import {
-  Decimal,
-  dec,
-  dinheiro,
-  exigirNaoNegativo,
-  NumeroEntrada,
-  percentual,
-} from "../../shared/numeros";
-import { calcularCustoFicha, FichaTecnica } from "../fichas-tecnicas/ficha-tecnica.calculo";
-import { ItemMix } from "../ponto-equilibrio/ponto-equilibrio.calculo";
-import { calcularPrecoSugerido, PercentuaisPreco } from "../precificacao/precificacao.calculo";
-
-export interface ResultadoMensal {
-  receita: Decimal;
-  custoProdutos: Decimal;
-  despesasVariaveis: Decimal;
-  margemContribuicao: Decimal;
-  custosFixos: Decimal;
-  // Lucro = receita - custo dos salgados - despesas variáveis - custos fixos
-  lucro: Decimal;
-  margemLucroPercentual: Decimal;
-}
+const { Decimal, dec, dinheiro, exigirNaoNegativo, percentual } = require("../../shared/numeros");
+const { calcularCustoFicha } = require("../fichas-tecnicas/ficha-tecnica.calculo");
+const { calcularPrecoSugerido } = require("../precificacao/precificacao.calculo");
 
 // "E se eu vender X de cada salgado neste mês?"
-export function simularResultadoMensal(
-  custosFixosMensais: NumeroEntrada,
-  itens: ItemMix[],
-  percentualDespesasVariaveis: NumeroEntrada,
-): ResultadoMensal {
+function simularResultadoMensal(custosFixosMensais, itens, percentualDespesasVariaveis) {
   const custosFixos = dec(custosFixosMensais);
   exigirNaoNegativo(custosFixos, "Custos fixos mensais");
 
@@ -40,6 +17,7 @@ export function simularResultadoMensal(
   }
   const despesasVariaveis = receita.mul(percentual(percentualDespesasVariaveis));
   const margemContribuicao = receita.sub(custoProdutos).sub(despesasVariaveis);
+  // Lucro = receita - custo dos salgados - despesas variáveis - custos fixos
   const lucro = margemContribuicao.sub(custosFixos);
 
   return {
@@ -55,30 +33,13 @@ export function simularResultadoMensal(
   };
 }
 
-export interface Reajuste {
-  ingredienteId: number;
-  // Variação do custo do ingrediente em % (10 = subiu 10%, -5 = caiu 5%).
-  percentual: NumeroEntrada;
-}
-
-export interface SimulacaoReajuste {
-  custoPorUnidadeAntes: Decimal;
-  custoPorUnidadeDepois: Decimal;
-  variacaoPercentual: Decimal;
-  precoSugeridoAntes?: Decimal;
-  precoSugeridoDepois?: Decimal;
-}
-
 // "E se a farinha subir 10%?" Recalcula o custo do salgado e, se informados os percentuais, o preço sugerido.
-export function simularReajusteIngredientes(
-  ficha: FichaTecnica,
-  reajustes: Reajuste[],
-  percentuais?: PercentuaisPreco,
-): SimulacaoReajuste {
+// Cada reajuste é { ingredienteId, percentual }: variação do custo em % (10 = subiu 10%, -5 = caiu 5%).
+function simularReajusteIngredientes(ficha, reajustes, percentuais) {
   const fatorPorIngrediente = new Map(
     reajustes.map((r) => [r.ingredienteId, new Decimal(1).add(percentual(r.percentual))]),
   );
-  const fichaReajustada: FichaTecnica = {
+  const fichaReajustada = {
     ...ficha,
     itens: ficha.itens.map((item) => {
       const fator = fatorPorIngrediente.get(item.ingredienteId);
@@ -88,7 +49,7 @@ export function simularReajusteIngredientes(
 
   const antes = calcularCustoFicha(ficha).custoPorUnidade;
   const depois = calcularCustoFicha(fichaReajustada).custoPorUnidade;
-  const resultado: SimulacaoReajuste = {
+  const resultado = {
     custoPorUnidadeAntes: antes,
     custoPorUnidadeDepois: depois,
     variacaoPercentual: antes.isZero()
@@ -101,3 +62,5 @@ export function simularReajusteIngredientes(
   }
   return resultado;
 }
+
+module.exports = { simularResultadoMensal, simularReajusteIngredientes };
