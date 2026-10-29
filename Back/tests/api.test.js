@@ -1,7 +1,7 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
-import request from "supertest";
-import { criarApp } from "../src/app";
+const { describe, it } = require("node:test");
+const assert = require("node:assert/strict");
+const request = require("supertest");
+const { criarApp } = require("../src/app");
 
 const app = criarApp();
 
@@ -135,7 +135,7 @@ describe("API", () => {
       .expect(400);
     assert.equal(res.body.codigo, "DADOS_INVALIDOS");
     assert.equal(res.body.erro, "Dados inválidos");
-    assert.ok(res.body.detalhes.some((d: { campo: string }) => d.campo === "rendimento"));
+    assert.ok(res.body.detalhes.some((d) => d.campo === "rendimento"));
   });
 
   it("devolve 400 para JSON malformado", async () => {

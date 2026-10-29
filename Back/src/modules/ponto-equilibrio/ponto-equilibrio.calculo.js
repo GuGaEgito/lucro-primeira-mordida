@@ -1,45 +1,18 @@
-import {
+const {
   Decimal,
   dec,
   dinheiro,
   ErroCalculo,
   exigirNaoNegativo,
   exigirPositivo,
-  NumeroEntrada,
   percentual,
-} from "../../shared/numeros";
+} = require("../../shared/numeros");
 
-export interface ProdutoVenda {
-  nome: string;
-  precoVenda: NumeroEntrada;
-  custoUnitario: NumeroEntrada;
-}
-
-export interface PontoEquilibrioProduto {
-  margemContribuicaoUnitaria: Decimal;
-  // Salgados a vender no mês para empatar (arredondado para cima).
-  quantidade: Decimal;
-  // Faturamento mensal para empatar.
-  receita: Decimal;
-}
-
-export interface ItemMix extends ProdutoVenda {
-  // Quantidade vendida no mês (define o peso de cada salgado no mix).
-  quantidadeVendida: NumeroEntrada;
-}
-
-export interface PontoEquilibrioMix {
-  margemContribuicaoMedia: Decimal;
-  quantidadeTotal: Decimal;
-  receita: Decimal;
-  porProduto: { nome: string; quantidade: Decimal }[];
-}
+// Um produto à venda é { nome, precoVenda, custoUnitario }.
+// No mix, cada item também tem quantidadeVendida no mês (define o peso de cada salgado no mix).
 
 // Margem de contribuição unitária = preço - custo do salgado - preço x % despesas variáveis
-export function margemContribuicaoUnitaria(
-  produto: ProdutoVenda,
-  percentualDespesasVariaveis: NumeroEntrada,
-): Decimal {
+function margemContribuicaoUnitaria(produto, percentualDespesasVariaveis) {
   const preco = dec(produto.precoVenda);
   const custo = dec(produto.custoUnitario);
   exigirPositivo(preco, `Preço de venda de "${produto.nome}"`);
@@ -49,11 +22,7 @@ export function margemContribuicaoUnitaria(
 
 // Ponto de equilíbrio em quantidade = custos fixos mensais / margem de contribuição unitária
 // Ponto de equilíbrio em R$ = quantidade x preço
-export function calcularPontoEquilibrio(
-  custosFixosMensais: NumeroEntrada,
-  produto: ProdutoVenda,
-  percentualDespesasVariaveis: NumeroEntrada,
-): PontoEquilibrioProduto {
+function calcularPontoEquilibrio(custosFixosMensais, produto, percentualDespesasVariaveis) {
   const custosFixos = dec(custosFixosMensais);
   exigirNaoNegativo(custosFixos, "Custos fixos mensais");
   const mc = margemContribuicaoUnitaria(produto, percentualDespesasVariaveis);
@@ -65,7 +34,9 @@ export function calcularPontoEquilibrio(
   const quantidade = custosFixos.div(mc).ceil();
   return {
     margemContribuicaoUnitaria: dinheiro(mc),
+    // Salgados a vender no mês para empatar (arredondado para cima).
     quantidade,
+    // Faturamento mensal para empatar.
     receita: dinheiro(quantidade.mul(dec(produto.precoVenda))),
   };
 }
@@ -74,11 +45,7 @@ export function calcularPontoEquilibrio(
 // MC média = soma(MC x quantidade vendida) / soma(quantidade vendida)
 // Quantidade total = custos fixos / MC média; cada salgado fica com a sua parte do mix.
 // Receita = custos fixos / (MC total / receita total)
-export function calcularPontoEquilibrioMix(
-  custosFixosMensais: NumeroEntrada,
-  itens: ItemMix[],
-  percentualDespesasVariaveis: NumeroEntrada,
-): PontoEquilibrioMix {
+function calcularPontoEquilibrioMix(custosFixosMensais, itens, percentualDespesasVariaveis) {
   const custosFixos = dec(custosFixosMensais);
   exigirNaoNegativo(custosFixos, "Custos fixos mensais");
   if (itens.length === 0) {
@@ -112,3 +79,9 @@ export function calcularPontoEquilibrioMix(
     })),
   };
 }
+
+module.exports = {
+  margemContribuicaoUnitaria,
+  calcularPontoEquilibrio,
+  calcularPontoEquilibrioMix,
+};

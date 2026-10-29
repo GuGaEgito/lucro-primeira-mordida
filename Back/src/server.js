@@ -1,5 +1,5 @@
-import "dotenv/config";
-import { criarApp } from "./app";
+require("dotenv/config");
+const { criarApp } = require("./app");
 
 const PORT = Number(process.env.PORT ?? 3000);
 if (!Number.isInteger(PORT) || PORT <= 0) {
@@ -13,7 +13,7 @@ const servidor = criarApp().listen(PORT, () => {
 
 // Encerramento gracioso: o Docker manda SIGTERM ao parar o container e o Ctrl+C manda SIGINT.
 // Para de aceitar conexões, termina as requisições em andamento e só então sai.
-function encerrar(sinal: NodeJS.Signals) {
+function encerrar(sinal) {
   console.log(`${sinal} recebido, encerrando o servidor...`);
   servidor.close(() => process.exit(0));
   // Se alguma conexão ficar presa, força a saída depois de 10 segundos.

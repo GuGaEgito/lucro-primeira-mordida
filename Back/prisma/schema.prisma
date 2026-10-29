@@ -1,11 +1,11 @@
 // Schema Prisma - A Casa do Salgado
 // Espelha o banco criado pelo script db/init/01_schema.sql (PostgreSQL).
-// A URL de conexão fica no prisma7.config.ts (variável DATABASE_URL).
+// A URL de conexão fica no prisma7.config.js (variável DATABASE_URL).
 // Datas usam timestamptz (com fuso) e os valores em dinheiro têm CHECK >= 0 no banco;
 // o Prisma não descreve CHECK no schema, eles ficam na migration 20261020000000_tipos_e_restricoes.
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 

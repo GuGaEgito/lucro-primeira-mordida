@@ -1,34 +1,21 @@
-import cors from "cors";
-import express, { ErrorRequestHandler, Response } from "express";
-import swaggerUi from "swagger-ui-express";
-import { ZodError } from "zod";
-import { openapi } from "./docs/openapi";
-import { calculosRotas } from "./modules/calculos.rotas";
-import { ErroCalculo } from "./shared/numeros";
+const cors = require("cors");
+const express = require("express");
+const swaggerUi = require("swagger-ui-express");
+const { ZodError } = require("zod");
+const { openapi } = require("./docs/openapi");
+const { calculosRotas } = require("./modules/calculos.rotas");
+const { ErroCalculo } = require("./shared/numeros");
 
 // Formato único de erro da API: { codigo, erro, detalhes? }.
 // O front decide o que fazer pelo `codigo`; `erro` é a mensagem para mostrar ao usuário.
-type CodigoErro =
-  | "DADOS_INVALIDOS"
-  | "JSON_INVALIDO"
-  | "CORPO_MUITO_GRANDE"
-  | "ERRO_CALCULO"
-  | "ROTA_NAO_ENCONTRADA"
-  | "ERRO_INTERNO";
-
-function responderErro(
-  res: Response,
-  status: number,
-  codigo: CodigoErro,
-  erro: string,
-  detalhes?: { campo: string; mensagem: string }[],
-): void {
+// Códigos: DADOS_INVALIDOS, JSON_INVALIDO, CORPO_MUITO_GRANDE, ERRO_CALCULO, ROTA_NAO_ENCONTRADA, ERRO_INTERNO.
+function responderErro(res, status, codigo, erro, detalhes) {
   res.status(status).json({ codigo, erro, ...(detalhes && { detalhes }) });
 }
 
 // CORS_ORIGIN: endereços do front separados por vírgula (ex.: http://localhost:5173).
 // Sem a variável, qualquer origem é aceita (bom para desenvolvimento; defina em produção).
-function origensPermitidas(): cors.CorsOptions["origin"] {
+function origensPermitidas() {
   const valor = process.env.CORS_ORIGIN?.trim();
   if (!valor) {
     if (process.env.NODE_ENV === "production") {
@@ -40,8 +27,8 @@ function origensPermitidas(): cors.CorsOptions["origin"] {
 }
 
 // O Express só reconhece o tratador de erros se ele tiver os 4 parâmetros.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const tratarErros: ErrorRequestHandler = (erro, _req, res, _next) => {
+// eslint-disable-next-line no-unused-vars
+function tratarErros(erro, _req, res, _next) {
   if (erro instanceof ZodError) {
     const detalhes = erro.issues.map((issue) => ({
       campo: issue.path.join("."),
@@ -65,9 +52,9 @@ const tratarErros: ErrorRequestHandler = (erro, _req, res, _next) => {
   }
   console.error(erro);
   responderErro(res, 500, "ERRO_INTERNO", "Erro interno do servidor");
-};
+}
 
-export function criarApp() {
+function criarApp() {
   const app = express();
 
   app.disable("x-powered-by");
@@ -93,3 +80,5 @@ export function criarApp() {
 
   return app;
 }
+
+module.exports = { criarApp };

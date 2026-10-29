@@ -1,16 +1,15 @@
 {
   "name": "casa-do-salgado-backend",
   "version": "1.0.0",
-  "main": "dist/server.js",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "test": "node --import tsx --test \"tests/**/*.test.ts\""
+    "prisma:generate": "prisma generate --config prisma7.config.js",
+    "prisma:migrate": "prisma migrate dev --config prisma7.config.js",
+    "test": "node --test \"tests/**/*.test.js\""
   },
   "keywords": [],
   "author": "",
@@ -18,20 +17,12 @@
   "description": "API REST do sistema de precificacao e gestao de fichas tecnicas - Casa do Salgado",
   "devDependencies": {
     "@eslint/js": "^9.17.0",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.10.2",
-    "@types/supertest": "^7.2.1",
-    "@types/swagger-ui-express": "^4.1.8",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "globals": "^15.13.0",
     "prettier": "^3.4.2",
     "prisma": "^7.10.0",
-    "supertest": "^7.3.1",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "typescript-eslint": "^8.18.1"
+    "supertest": "^7.3.1"
   },
   "dependencies": {
     "@prisma/client": "^7.10.0",
@@ -41,5 +32,8 @@
     "express": "^4.21.2",
     "swagger-ui-express": "^5.0.1",
     "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

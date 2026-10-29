@@ -1,36 +1,39 @@
-import { RequestHandler, Router } from "express";
-import { z } from "zod";
-import { fichaTecnica, itemMix, numero, percentuaisPreco, produtoVenda } from "../shared/validacao";
-import {
+const { Router } = require("express");
+const { z } = require("zod");
+const {
+  fichaTecnica,
+  itemMix,
+  numero,
+  percentuaisPreco,
+  produtoVenda,
+} = require("../shared/validacao");
+const {
   custoFixoPorUnidade,
   percentualCustoFixo,
   totalCustosFixos,
-} from "./custos/custos.calculo";
-import { calcularCustoFicha } from "./fichas-tecnicas/ficha-tecnica.calculo";
-import {
+} = require("./custos/custos.calculo");
+const { calcularCustoFicha } = require("./fichas-tecnicas/ficha-tecnica.calculo");
+const {
   calcularPontoEquilibrio,
   calcularPontoEquilibrioMix,
-} from "./ponto-equilibrio/ponto-equilibrio.calculo";
-import {
+} = require("./ponto-equilibrio/ponto-equilibrio.calculo");
+const {
   analisarPreco,
   calcularMarkup,
   calcularPrecoSugerido,
-} from "./precificacao/precificacao.calculo";
-import {
+} = require("./precificacao/precificacao.calculo");
+const {
   simularReajusteIngredientes,
   simularResultadoMensal,
-} from "./simulacoes/simulacoes.calculo";
+} = require("./simulacoes/simulacoes.calculo");
 
 // Rotas que só calculam: recebem os dados no corpo (JSON) e devolvem o resultado, sem gravar no banco.
 // Valores em dinheiro e percentuais voltam como string ("1.10") para não perder centavos.
-export const calculosRotas = Router();
+const calculosRotas = Router();
 
 // Valida o corpo com o schema e responde com o resultado do cálculo.
 // Erros de validação (ZodError) e de cálculo (ErroCalculo) seguem para o tratador de erros do app.
-function calculo<T extends z.ZodType>(
-  schema: T,
-  calcular: (body: z.infer<T>) => unknown,
-): RequestHandler {
+function calculo(schema, calcular) {
   return (req, res) => {
     res.json(calcular(schema.parse(req.body)));
   };
@@ -132,3 +135,5 @@ calculosRotas.post(
     simularReajusteIngredientes(body.ficha, body.reajustes, body.percentuais),
   ),
 );
+
+module.exports = { calculosRotas };
