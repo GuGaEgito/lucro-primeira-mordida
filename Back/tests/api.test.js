@@ -1,9 +1,15 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const request = require("supertest");
+process.env.JWT_SECRET = "segredo-dos-testes";
 const { criarApp } = require("../src/app");
+const { gerarToken } = require("../src/shared/autenticacao");
 
 const app = criarApp();
+// As rotas de cálculo exigem login: todas as requisições vão com o token de um funcionário.
+const api = request
+  .agent(app)
+  .set("Authorization", `Bearer ${gerarToken({ id: 1, cargo: "FUNCIONARIO" })}`);
 
 const ficha = {
   rendimento: 40,
@@ -44,13 +50,13 @@ const mix = {
 
 describe("API", () => {
   it("responde o health e a documentação", async () => {
-    await request(app).get("/health").expect(200, { status: "ok" });
-    const docs = await request(app).get("/api/openapi.json").expect(200);
+    await api.get("/health").expect(200, { status: "ok" });
+    const docs = await api.get("/api/openapi.json").expect(200);
     assert.ok(docs.body.paths["/api/calculos/ficha-tecnica"]);
   });
 
   it("libera CORS para o front", async () => {
-    const res = await request(app)
+    const res = await api
       .options("/api/calculos/markup")
       .set("Origin", "http://localhost:5173")
       .set("Access-Control-Request-Method", "POST")
@@ -59,13 +65,13 @@ describe("API", () => {
   });
 
   it("calcula a ficha técnica com valores em texto", async () => {
-    const res = await request(app).post("/api/calculos/ficha-tecnica").send(ficha).expect(200);
+    const res = await api.post("/api/calculos/ficha-tecnica").send(ficha).expect(200);
     assert.equal(res.body.custoTotalReceita, "24.1");
     assert.equal(res.body.custoPorUnidade, "0.6025");
   });
 
   it("calcula custos fixos", async () => {
-    const res = await request(app)
+    const res = await api
       .post("/api/calculos/custos-fixos")
       .send({
         custos: [
@@ -83,14 +89,14 @@ describe("API", () => {
   });
 
   it("calcula markup, preço sugerido e análise de preço", async () => {
-    const markup = await request(app).post("/api/calculos/markup").send(percentuais).expect(200);
+    const markup = await api.post("/api/calculos/markup").send(percentuais).expect(200);
     assert.equal(markup.body.divisor, "0.55");
-    const preco = await request(app)
+    const preco = await api
       .post("/api/calculos/preco-sugerido")
       .send({ custoUnitario: "0.6025", percentuais })
       .expect(200);
     assert.equal(preco.body.precoSugerido, "1.1");
-    const analise = await request(app)
+    const analise = await api
       .post("/api/calculos/analise-preco")
       .send({
         precoVenda: "1.10",
@@ -102,7 +108,7 @@ describe("API", () => {
   });
 
   it("calcula ponto de equilíbrio e simulações", async () => {
-    const pe = await request(app)
+    const pe = await api
       .post("/api/calculos/ponto-equilibrio")
       .send({
         custosFixosMensais: 3000,
@@ -111,17 +117,11 @@ describe("API", () => {
       })
       .expect(200);
     assert.equal(pe.body.quantidade, "1000");
-    const peMix = await request(app)
-      .post("/api/calculos/ponto-equilibrio/mix")
-      .send(mix)
-      .expect(200);
+    const peMix = await api.post("/api/calculos/ponto-equilibrio/mix").send(mix).expect(200);
     assert.equal(peMix.body.porProduto.length, 2);
-    const mes = await request(app)
-      .post("/api/calculos/simulacoes/resultado-mensal")
-      .send(mix)
-      .expect(200);
+    const mes = await api.post("/api/calculos/simulacoes/resultado-mensal").send(mix).expect(200);
     assert.equal(mes.body.lucro, "320");
-    const reajuste = await request(app)
+    const reajuste = await api
       .post("/api/calculos/simulacoes/reajuste")
       .send({ ficha, reajustes: [{ ingredienteId: 2, percentual: 10 }], percentuais })
       .expect(200);
@@ -129,7 +129,7 @@ describe("API", () => {
   });
 
   it("devolve 400 para dados inválidos", async () => {
-    const res = await request(app)
+    const res = await api
       .post("/api/calculos/ficha-tecnica")
       .send({ rendimento: "abc", itens: [] })
       .expect(400);
@@ -139,7 +139,7 @@ describe("API", () => {
   });
 
   it("devolve 400 para JSON malformado", async () => {
-    await request(app)
+    await api
       .post("/api/calculos/markup")
       .set("Content-Type", "application/json")
       .send("{ruim")
@@ -147,7 +147,7 @@ describe("API", () => {
   });
 
   it("devolve 422 quando o cálculo não é possível", async () => {
-    const res = await request(app)
+    const res = await api
       .post("/api/calculos/markup")
       .send({ custoFixo: 50, despesasVariaveis: 30, lucro: 30 })
       .expect(422);
@@ -156,20 +156,20 @@ describe("API", () => {
   });
 
   it("devolve 404 para rota inexistente", async () => {
-    await request(app)
+    await api
       .get("/api/nao-existe")
       .expect(404, { codigo: "ROTA_NAO_ENCONTRADA", erro: "Rota não encontrada" });
   });
 
   it("devolve 413 para corpo grande demais", async () => {
-    await request(app)
+    await api
       .post("/api/calculos/markup")
       .send({ custoFixo: 20, despesasVariaveis: 10, lucro: 15, extra: "x".repeat(200_000) })
       .expect(413, { codigo: "CORPO_MUITO_GRANDE", erro: "Corpo da requisição muito grande" });
   });
 
   it("não expõe o cabeçalho X-Powered-By", async () => {
-    const res = await request(app).get("/health").expect(200);
+    const res = await api.get("/health").expect(200);
     assert.equal(res.headers["x-powered-by"], undefined);
   });
 });

@@ -43,7 +43,7 @@ Na coluna STATUS deve aparecer **healthy** (se aparecer "starting", espere uns 1
 cd Back
 copy .env.example .env
 ```
-Abra o `Back/.env` e troque `COLE_AQUI_A_SENHA` pela **mesma senha** que você colocou no passo 3.
+Abra o `Back/.env` e troque `COLE_AQUI_A_SENHA` pela **mesma senha** que você colocou no passo 3 e o `JWT_SECRET` pelo **mesmo texto** do `.env` da raiz.
 
 **6. Instale as dependências e crie as tabelas** (ainda dentro da pasta `Back`)
 ```
@@ -58,6 +58,13 @@ cd ..
 docker compose exec db psql -U salgado -d casa_do_salgado -c "\dt"
 ```
 Devem aparecer **6 tabelas**: `_prisma_migrations`, `custo_fixo`, `historico_custo_insumo`, `ingredientes`, `produtos` e `usuario`.
+
+**8. Crie o primeiro gestor** (dentro da pasta `Back`). Sem nenhum usuário ninguém consegue fazer login:
+```
+cd Back
+npm run criar-gestor -- SeuNome SuaSenha
+```
+Depois é só entrar em `POST /api/auth/login` com esse nome e senha. Os funcionários o gestor cadastra pela rota `POST /api/usuarios`.
 
 Pronto, o banco está rodando.
 
@@ -128,6 +135,8 @@ O back-end é JavaScript puro (Node.js 22, CommonJS): não tem etapa de build. E
 
 ### Para quem vai fazer o front-end
 
+- **Login:** `POST /api/auth/login` com `{ "nome", "senha" }` devolve `{ token, usuario: { id, nome, cargo } }`. Mande o token em todas as outras rotas no cabeçalho `Authorization: Bearer <token>`. Ele vale `JWT_EXPIRES_IN` (8h). Recebeu `401`? Volte para a tela de login. `403` quer dizer que o cargo não pode fazer aquilo.
+- **Permissões:** o `FUNCIONARIO` consulta ingredientes e produtos e usa os cálculos. Só o `GESTOR` cria, altera ou apaga ingredientes, produtos e usuários. `GET /api/auth/eu` diz quem está logado e qual o cargo.
 - Todas as rotas de cálculo são `POST /api/calculos/...` com corpo em JSON.
 - Percentuais vão de 0 a 100 (`10` = 10%).
 - Valores decimais podem ser enviados como número ou texto (`"1.50"`) e **voltam sempre como texto** (`"1.10"`), para não perder centavos.

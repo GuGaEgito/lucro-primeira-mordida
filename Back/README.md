@@ -50,6 +50,7 @@ Este documento explica como o back-end funciona por dentro. Para instalar o Dock
 Hoje a API tem dois tipos de rota:
 
 - **Rotas do sistema:** `GET /health`, a documentação Swagger em `/api/docs` e a especificação em `/api/openapi.json`.
+- **Login e usuários:** `POST /api/auth/login` (público) devolve um token JWT; `GET /api/auth/eu` e `/api/usuarios` (só GESTOR). Veja a seção "Login e permissões" abaixo.
 - **Rotas de cálculo:** 9 rotas `POST /api/calculos/...`. Elas recebem todos os dados no corpo da requisição, calculam e respondem. **Não gravam nada no banco.** Por isso funcionam mesmo com o banco desligado.
 
 O banco já existe (tabelas de usuários, ingredientes, produtos, custos fixos e histórico de custos), mas as rotas de cadastro que vão ler e gravar nele ainda serão feitas.
@@ -68,6 +69,8 @@ O banco já existe (tabelas de usuários, ingredientes, produtos, custos fixos e
 | **swagger-ui-express** | Monta a página de documentação em `/api/docs`. |
 | **Prisma 7** | Cria as tabelas (migrations) e será usado para ler e gravar no PostgreSQL. |
 | **dotenv** | Lê as variáveis do arquivo `.env`. |
+| **jsonwebtoken** | Gera e confere o token de login (JWT). |
+| **bcryptjs** | Guarda a senha como hash e confere no login (JavaScript puro, instala sem compilar no Windows). |
 | **node:test + supertest** | Testes automáticos (o primeiro já vem com o Node; o segundo simula requisições HTTP). |
 | **ESLint + Prettier** | Apontam erros comuns e padronizam a formatação do código. |
 
@@ -418,9 +421,20 @@ Exemplo: uma rota que calcula o CMV de um salgado.
 
 ---
 
+## Login e permissões
+
+- O login é pelo `nome` (único no banco) e senha. `POST /api/auth/login` confere a senha com bcrypt e devolve um token JWT assinado com `JWT_SECRET`, que leva só o id (`sub`) e o `cargo` e vence em `JWT_EXPIRES_IN` (padrão `8h`).
+- `src/shared/autenticacao.js` tem os middlewares: `autenticar` (exige `Authorization: Bearer <token>` e preenche `req.usuario = { id, cargo }`) e `exigirCargo("GESTOR")`.
+- No `app.js`, só `/health`, `/api/docs`, `/api/openapi.json` e `/api/auth/login` são públicos. FUNCIONARIO lê ingredientes e produtos e usa os cálculos; criar, alterar e apagar é só do GESTOR.
+- Erros: `401 NAO_AUTENTICADO` (sem token, token alterado ou vencido), `401 CREDENCIAIS_INVALIDAS` (nome ou senha errados, ou usuário desativado), `403 SEM_PERMISSAO`.
+- Ao mudar o `custoUnitario` de um ingrediente, o `PUT /api/ingredientes/:id` grava a mudança em `historico_custo_insumo` com o usuário logado.
+- Primeiro gestor: `npm run criar-gestor -- <nome> <senha>`.
+- Limite conhecido: desativar um usuário bloqueia novos logins, mas o token que ele já tem continua valendo até vencer.
+
+---
+
 ## 13. O que ainda falta
 
-- Rotas de cadastro que leem e gravam no banco (ingredientes, produtos, custos fixos, usuários).
+- Rota de cadastro de custos fixos.
 - Tabela que liga produto a vários ingredientes (a ficha técnica salva no banco).
-- Login (o `docker-compose.yml` já prevê `JWT_SECRET`).
 - Diagnóstico de "rentável ou não" para cada salgado.

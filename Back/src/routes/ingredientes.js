@@ -1,6 +1,7 @@
 const { Router } = require("express");
 const { z } = require("zod");
 const { prisma } = require("../shared/prisma");
+const { exigirCargo } = require("../shared/autenticacao");
 
 const ingredientesRotas = Router();
 
@@ -49,7 +50,7 @@ ingredientesRotas.get("/:id", async (req, res, next) => {
 });
 
 // POST /api/ingredientes — cria um ingrediente
-ingredientesRotas.post("/", async (req, res, next) => {
+ingredientesRotas.post("/", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const dados = criarIngredienteBody.parse(req.body);
 
@@ -72,9 +73,8 @@ ingredientesRotas.post("/", async (req, res, next) => {
 });
 
 // PUT /api/ingredientes/:id — atualiza um ingrediente (campos enviados)
-// ATENÇÃO: atualizar custoUnitario aqui NÃO grava no historico_custo_insumo,
-// pois essa tabela exige usuario_id (autenticação ainda não implementada).
-ingredientesRotas.put("/:id", async (req, res, next) => {
+// Se o custoUnitario mudar, grava a mudança no historico_custo_insumo com o usuário logado.
+ingredientesRotas.put("/:id", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
@@ -86,13 +86,31 @@ ingredientesRotas.put("/:id", async (req, res, next) => {
       return res.status(400).json({ codigo: "DADOS_INVALIDOS", erro: "Nenhum campo enviado para atualizar" });
     }
 
-    const ingrediente = await prisma.ingrediente.update({
-      where: { id },
-      data: {
-        ...(dados.nome !== undefined && { nome: dados.nome }),
-        ...(dados.unidade !== undefined && { unidade: dados.unidade }),
-        ...(dados.custoUnitario !== undefined && { custoUnitario: dados.custoUnitario }),
-      },
+    // Update e histórico na mesma transação: ou grava os dois, ou nenhum.
+    const ingrediente = await prisma.$transaction(async (tx) => {
+      const atual = await tx.ingrediente.findUnique({ where: { id }, select: { custoUnitario: true } });
+
+      const atualizado = await tx.ingrediente.update({
+        where: { id },
+        data: {
+          ...(dados.nome !== undefined && { nome: dados.nome }),
+          ...(dados.unidade !== undefined && { unidade: dados.unidade }),
+          ...(dados.custoUnitario !== undefined && { custoUnitario: dados.custoUnitario }),
+        },
+      });
+
+      if (atual && !atual.custoUnitario.equals(atualizado.custoUnitario)) {
+        await tx.historicoCustoInsumo.create({
+          data: {
+            insumoId: id,
+            custoAnterior: atual.custoUnitario,
+            custoNovo: atualizado.custoUnitario,
+            usuarioId: req.usuario.id,
+          },
+        });
+      }
+
+      return atualizado;
     });
 
     res.json(ingrediente);
@@ -109,7 +127,7 @@ ingredientesRotas.put("/:id", async (req, res, next) => {
 
 // DELETE /api/ingredientes/:id — remove um ingrediente
 // Falha se o ingrediente estiver vinculado a algum produto (FK com RESTRICT no histórico)
-ingredientesRotas.delete("/:id", async (req, res, next) => {
+ingredientesRotas.delete("/:id", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
