@@ -4,6 +4,8 @@ const swaggerUi = require("swagger-ui-express");
 const { ZodError } = require("zod");
 const { openapi } = require("./docs/openapi");
 const { calculosRotas } = require("./modules/calculos.rotas");
+const { ingredientesRotas } = require("./routes/ingredientes");
+const { produtosRotas } = require("./routes/produtos");
 const { ErroCalculo } = require("./shared/numeros");
 
 // Formato único de erro da API: { codigo, erro, detalhes? }.
@@ -72,6 +74,8 @@ function criarApp() {
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapi));
 
   app.use("/api/calculos", calculosRotas);
+  app.use("/api/ingredientes", ingredientesRotas);
+  app.use("/api/produtos", produtosRotas);
 
   app.use((_req, res) => {
     responderErro(res, 404, "ROTA_NAO_ENCONTRADA", "Rota não encontrada");
