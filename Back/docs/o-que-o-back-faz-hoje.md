@@ -1,5 +1,7 @@
 # O que o back-end faz hoje
 
+> 📌 **Atualização:** Para o histórico recente e diário de implementação (incluindo as rotas CRUD de ingredientes e produtos), consulte o [Diário de Bordo](./diario-de-bordo.md).
+
 Retrato do código da `main` em `Back/` em 29/10/2026 (commit a7af662, depois do PR #5). Nesse dia os testes rodaram: 28 de 28 passam.
 
 ## Resumo em uma frase
@@ -204,12 +206,12 @@ O banco também bloqueia valores negativos em custo, preço e valor mensal (regr
 
 ## O que ainda NÃO faz
 
-1. **Nenhuma rota usa o banco.** Não existe rota para cadastrar, listar, editar ou apagar ingredientes, produtos, custos fixos ou usuários. Hoje o front teria que mandar todos os números em cada cálculo.
+1. **Rotas de custos fixos e usuários no banco.** As rotas de CRUD de `ingredientes` e `produtos` já foram criadas (ver [Diário de Bordo](./diario-de-bordo.md)), restando ainda os endpoints para custos fixos e usuários.
 2. **Falta a tabela produto x ingrediente** (a ficha técnica salva). Sem ela não dá para guardar a receita de cada salgado com quantidade, unidade e fator de correção. Também falta guardar o rendimento da receita.
 3. **Falta a avaliação "rentável ou não".** A análise de preço devolve os números (margem, lucro, CMV), mas não diz "este salgado dá lucro", "está no limite" ou "dá prejuízo".
-4. **O histórico de custo não é preenchido.** A tabela existe, mas nada grava nela quando um ingrediente muda de preço.
+4. **O histórico de custo não é preenchido.** A tabela existe, mas nada grava nela quando um ingrediente muda de preço (aguarda autenticação/login para obter `usuario_id`).
 5. **Não tem login nem permissão.** A tabela `usuario` existe, mas não há autenticação e não há diferença entre gestor e funcionário. Qualquer um que alcance a API pode chamar todas as rotas.
-6. **Falta o adaptador do Prisma 7.** Quando as rotas forem usar o banco, vai ser preciso instalar o `@prisma/adapter-pg` (o Prisma 7 exige).
+6. ~~**Falta o adaptador do Prisma 7.**~~ Concluído: `@prisma/adapter-pg` instalado e configurado em `src/shared/prisma.js`.
 7. A pasta `src/modules/ingredientes/` está vazia, só reservada.
 
 ## Testes
