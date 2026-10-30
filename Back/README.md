@@ -53,7 +53,7 @@ Hoje a API tem dois tipos de rota:
 - **Login e usuários:** `POST /api/auth/login` (público) devolve um token JWT; `GET /api/auth/eu` e `/api/usuarios` (só GESTOR). Veja a seção "Login e permissões" abaixo.
 - **Rotas de cálculo:** 9 rotas `POST /api/calculos/...`. Elas recebem todos os dados no corpo da requisição, calculam e respondem. **Não gravam nada no banco.** Por isso funcionam mesmo com o banco desligado.
 
-O banco já existe (tabelas de usuários, ingredientes, produtos, custos fixos e histórico de custos), mas as rotas de cadastro que vão ler e gravar nele ainda serão feitas.
+O banco tem as tabelas de usuários, ingredientes, produtos (com a receita em `produto_ingredientes`), custos fixos e histórico de custos. As rotas de ingredientes, produtos e usuários já leem e gravam nele; falta a de custos fixos.
 
 ---
 
@@ -358,7 +358,8 @@ O PostgreSQL 16 roda no Docker (ver `docker-compose.yml` na raiz). O Prisma desc
 |---|---|---|
 | `usuario` | `Usuario` | Nome, cargo (`GESTOR` ou `FUNCIONARIO`), hash da senha, ativo. |
 | `ingredientes` | `Ingrediente` | Nome único, unidade de medida e custo unitário (4 casas). |
-| `produtos` | `Produto` | Nome do salgado, preço de venda aprovado, ativo. |
+| `produtos` | `Produto` | Nome do salgado, rendimento da receita, preço de venda aprovado, ativo. |
+| `produto_ingredientes` | `ProdutoIngrediente` | Receita (ficha técnica): ingrediente, quantidade e unidade usados em cada produto. |
 | `custo_fixo` | `CustoFixo` | Aluguel, energia, gás, salários etc., com o valor mensal. |
 | `historico_custo_insumo` | `HistoricoCustoInsumo` | Cada mudança no custo de um ingrediente: valor anterior, novo, quem mudou e quando. |
 
@@ -436,5 +437,4 @@ Exemplo: uma rota que calcula o CMV de um salgado.
 ## 13. O que ainda falta
 
 - Rota de cadastro de custos fixos.
-- Tabela que liga produto a vários ingredientes (a ficha técnica salva no banco).
 - Diagnóstico de "rentável ou não" para cada salgado.

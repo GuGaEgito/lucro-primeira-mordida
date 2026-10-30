@@ -54,7 +54,7 @@ model Ingrediente {
   custoUnitario Decimal       @map("custo_unitario") @db.Decimal(10, 4) // custo por 1 unidade de medida
   atualizadoEm  DateTime      @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
-  produtos        Produto[]
+  produtosItens   ProdutoIngrediente[]
   historicoCustos HistoricoCustoInsumo[]
 
   @@map("ingredientes")
@@ -63,15 +63,30 @@ model Ingrediente {
 model Produto {
   id            Int      @id @default(autoincrement())
   nome          String   @db.VarChar(50)
-  ingredienteId Int?     @map("ingredientes_id")
+  rendimento   Decimal              @default(1) @db.Decimal(10, 2)
   precoVenda    Decimal? @map("preco_venda") @db.Decimal(10, 2) // preço final aprovado (sugerido ou ajustado)
   ativo         Boolean  @default(true)
   atualizadoEm  DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
 
-  ingrediente Ingrediente? @relation(fields: [ingredienteId], references: [id])
+  ingredientes ProdutoIngrediente[]
 
-  @@index([ingredienteId], map: "idx_produtos_ingrediente")
+
   @@map("produtos")
+}
+
+model ProdutoIngrediente {
+  id             Int           @id @default(autoincrement())
+  produtoId      Int           @map("produto_id")
+  ingredienteId  Int           @map("ingrediente_id")
+  quantidade     Decimal       @db.Decimal(10, 4)
+  unidadeReceita UnidadeMedida @map("unidade_receita")
+
+  produto     Produto     @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  ingrediente Ingrediente @relation(fields: [ingredienteId], references: [id], onDelete: Restrict)
+
+  @@unique([produtoId, ingredienteId], map: "uq_produto_ingrediente")
+  @@index([ingredienteId], map: "idx_prod_ing_ingrediente")
+  @@map("produto_ingredientes")
 }
 
 model CustoFixo {

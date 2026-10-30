@@ -34,10 +34,20 @@ CREATE TABLE ingredientes (
 CREATE TABLE produtos (
     id              SERIAL PRIMARY KEY,
     nome            VARCHAR(50) NOT NULL,
-    ingredientes_id INT REFERENCES ingredientes(id),
+    rendimento      NUMERIC(10,2) NOT NULL DEFAULT 1 CHECK (rendimento > 0), -- quantos salgados a receita rende
     preco_venda     NUMERIC(10,2) CHECK (preco_venda IS NULL OR preco_venda >= 0), -- preço final aprovado (sugerido ou ajustado)
     ativo           BOOLEAN   NOT NULL DEFAULT TRUE,
     atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ---------- FICHA TÉCNICA (receita do produto) ----------
+CREATE TABLE produto_ingredientes (
+    id              SERIAL PRIMARY KEY,
+    produto_id      INT NOT NULL REFERENCES produtos(id) ON DELETE CASCADE,
+    ingrediente_id  INT NOT NULL REFERENCES ingredientes(id) ON DELETE RESTRICT,
+    quantidade      NUMERIC(10,4)  NOT NULL CHECK (quantidade > 0),
+    unidade_receita unidade_medida NOT NULL,
+    CONSTRAINT uq_produto_ingrediente UNIQUE (produto_id, ingrediente_id)
 );
 
 -- ---------- CUSTO FIXO (RF12 / RF13) ----------
@@ -59,6 +69,6 @@ CREATE TABLE historico_custo_insumo (
 );
 
 -- ---------- ÍNDICES ----------
-CREATE INDEX idx_produtos_ingrediente ON produtos(ingredientes_id);
+CREATE INDEX idx_prod_ing_ingrediente  ON produto_ingredientes(ingrediente_id);
 CREATE INDEX idx_hist_custo_insumo    ON historico_custo_insumo(insumo_id, alterado_em DESC);
 CREATE INDEX idx_hist_custo_usuario   ON historico_custo_insumo(usuario_id);

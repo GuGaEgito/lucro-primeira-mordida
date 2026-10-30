@@ -6,18 +6,43 @@ const { exigirCargo } = require("../shared/autenticacao");
 const produtosRotas = Router();
 
 // Validações
-const criarProdutoBody = z.object({
-  nome: z.string().min(1).max(50),
-  ingredienteId: z.number().int().positive().optional(),
-  precoVenda: z.number().nonnegative("Preço de venda não pode ser negativo").optional(),
-  ativo: z.boolean().optional(),
+const unidadeMedida = z.enum(["KG", "G", "L", "ML", "UN"]);
+
+const itemReceitaSchema = z.object({
+  ingredienteId: z.number().int().positive("ID do ingrediente inválido"),
+  quantidade: z.number().positive("Quantidade deve ser maior que zero"),
+  unidadeReceita: unidadeMedida,
 });
 
-const atualizarProdutoBody = criarProdutoBody.partial();
+const criarProdutoBody = z.object({
+  nome: z.string().min(1).max(50),
+  rendimento: z.number().positive("Rendimento deve ser maior que zero").optional().default(1),
+  precoVenda: z.number().nonnegative("Preço de venda não pode ser negativo").optional(),
+  ativo: z.boolean().optional().default(true),
+  ingredientes: z.array(itemReceitaSchema).optional().default([]),
+});
+
+const atualizarProdutoBody = z.object({
+  nome: z.string().min(1).max(50).optional(),
+  rendimento: z.number().positive("Rendimento deve ser maior que zero").optional(),
+  precoVenda: z.number().nonnegative("Preço de venda não pode ser negativo").nullable().optional(),
+  ativo: z.boolean().optional(),
+  ingredientes: z.array(itemReceitaSchema).optional(),
+});
 
 const ativoBody = z.object({
   ativo: z.boolean(),
 });
+
+const includeIngredientes = {
+  ingredientes: {
+    include: {
+      ingrediente: {
+        select: { id: true, nome: true, unidade: true, custoUnitario: true },
+      },
+    },
+  },
+};
 
 // GET /api/produtos — lista produtos (somente ativos por padrão)
 // Use ?todos=true para incluir inativos
@@ -27,11 +52,7 @@ produtosRotas.get("/", async (req, res, next) => {
 
     const produtos = await prisma.produto.findMany({
       where: incluirTodos ? {} : { ativo: true },
-      include: {
-        ingrediente: {
-          select: { id: true, nome: true, unidade: true, custoUnitario: true },
-        },
-      },
+      include: includeIngredientes,
       orderBy: { nome: "asc" },
     });
 
@@ -51,11 +72,7 @@ produtosRotas.get("/:id", async (req, res, next) => {
 
     const produto = await prisma.produto.findUnique({
       where: { id },
-      include: {
-        ingrediente: {
-          select: { id: true, nome: true, unidade: true, custoUnitario: true },
-        },
-      },
+      include: includeIngredientes,
     });
 
     if (!produto) {
@@ -68,7 +85,7 @@ produtosRotas.get("/:id", async (req, res, next) => {
   }
 });
 
-// POST /api/produtos — cria um produto
+// POST /api/produtos — cria um produto com sua receita de ingredientes
 produtosRotas.post("/", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const dados = criarProdutoBody.parse(req.body);
@@ -76,28 +93,35 @@ produtosRotas.post("/", exigirCargo("GESTOR"), async (req, res, next) => {
     const produto = await prisma.produto.create({
       data: {
         nome: dados.nome,
-        ...(dados.ingredienteId !== undefined && { ingredienteId: dados.ingredienteId }),
-        ...(dados.precoVenda !== undefined && { precoVenda: dados.precoVenda }),
-        ...(dados.ativo !== undefined && { ativo: dados.ativo }),
-      },
-      include: {
-        ingrediente: {
-          select: { id: true, nome: true, unidade: true, custoUnitario: true },
+        rendimento: dados.rendimento,
+        precoVenda: dados.precoVenda,
+        ativo: dados.ativo,
+        ingredientes: {
+          create: dados.ingredientes.map((item) => ({
+            ingredienteId: item.ingredienteId,
+            quantidade: item.quantidade,
+            unidadeReceita: item.unidadeReceita,
+          })),
         },
       },
+      include: includeIngredientes,
     });
 
     res.status(201).json(produto);
   } catch (err) {
-    // ingredienteId não existe no banco
+    // Ingrediente informado não existe no banco
     if (err?.code === "P2003") {
-      return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Ingrediente informado não existe" });
+      return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Um ou mais ingredientes informados não existem" });
+    }
+    // Ingrediente duplicado na mesma receita
+    if (err?.code === "P2002") {
+      return res.status(409).json({ codigo: "CONFLITO", erro: "Não é permitido adicionar o mesmo ingrediente mais de uma vez na mesma receita" });
     }
     next(err);
   }
 });
 
-// PUT /api/produtos/:id — atualiza campos de um produto
+// PUT /api/produtos/:id — atualiza campos de um produto e/ou sua receita
 produtosRotas.put("/:id", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -110,19 +134,39 @@ produtosRotas.put("/:id", exigirCargo("GESTOR"), async (req, res, next) => {
       return res.status(400).json({ codigo: "DADOS_INVALIDOS", erro: "Nenhum campo enviado para atualizar" });
     }
 
-    const produto = await prisma.produto.update({
-      where: { id },
-      data: {
-        ...(dados.nome !== undefined && { nome: dados.nome }),
-        ...(dados.ingredienteId !== undefined && { ingredienteId: dados.ingredienteId }),
-        ...(dados.precoVenda !== undefined && { precoVenda: dados.precoVenda }),
-        ...(dados.ativo !== undefined && { ativo: dados.ativo }),
-      },
-      include: {
-        ingrediente: {
-          select: { id: true, nome: true, unidade: true, custoUnitario: true },
-        },
-      },
+    const produtoExiste = await prisma.produto.findUnique({ where: { id } });
+    if (!produtoExiste) {
+      return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Produto não encontrado" });
+    }
+
+    const produto = await prisma.$transaction(async (tx) => {
+      // Se enviou a lista de ingredientes, substitui a receita
+      if (dados.ingredientes !== undefined) {
+        await tx.produtoIngrediente.deleteMany({
+          where: { produtoId: id },
+        });
+
+        if (dados.ingredientes.length > 0) {
+          await tx.produtoIngrediente.createMany({
+            data: dados.ingredientes.map((item) => ({
+              produtoId: id,
+              ingredienteId: item.ingredienteId,
+              quantidade: item.quantidade,
+              unidadeReceita: item.unidadeReceita,
+            })),
+          });
+        }
+      }
+
+      // Separa a receita (já gravada acima) dos campos da tabela produtos.
+      // eslint-disable-next-line no-unused-vars
+      const { ingredientes, ...dadosProduto } = dados;
+
+      return tx.produto.update({
+        where: { id },
+        data: dadosProduto,
+        include: includeIngredientes,
+      });
     });
 
     res.json(produto);
@@ -131,7 +175,10 @@ produtosRotas.put("/:id", exigirCargo("GESTOR"), async (req, res, next) => {
       return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Produto não encontrado" });
     }
     if (err?.code === "P2003") {
-      return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Ingrediente informado não existe" });
+      return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Um ou mais ingredientes informados não existem" });
+    }
+    if (err?.code === "P2002") {
+      return res.status(409).json({ codigo: "CONFLITO", erro: "Não é permitido adicionar o mesmo ingrediente mais de uma vez na mesma receita" });
     }
     next(err);
   }
@@ -162,7 +209,7 @@ produtosRotas.patch("/:id/ativo", exigirCargo("GESTOR"), async (req, res, next) 
   }
 });
 
-// DELETE /api/produtos/:id — remove permanentemente um produto
+// DELETE /api/produtos/:id — remove permanentemente um produto (itens da receita são excluídos em cascata)
 produtosRotas.delete("/:id", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);

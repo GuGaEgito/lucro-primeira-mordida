@@ -57,7 +57,7 @@ Deve terminar com a mensagem `All migrations have been successfully applied`.
 cd ..
 docker compose exec db psql -U salgado -d casa_do_salgado -c "\dt"
 ```
-Devem aparecer **6 tabelas**: `_prisma_migrations`, `custo_fixo`, `historico_custo_insumo`, `ingredientes`, `produtos` e `usuario`.
+Devem aparecer **7 tabelas**: `_prisma_migrations`, `custo_fixo`, `historico_custo_insumo`, `ingredientes`, `produto_ingredientes`, `produtos` e `usuario`.
 
 **8. Crie o primeiro gestor** (dentro da pasta `Back`). Sem nenhum usuário ninguém consegue fazer login:
 ```
