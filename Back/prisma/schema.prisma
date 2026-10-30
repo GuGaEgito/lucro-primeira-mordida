@@ -36,7 +36,7 @@ enum UnidadeMedida {
 
 model Usuario {
   id       Int          @id @default(autoincrement())
-  nome     String       @db.VarChar(50)
+  nome     String       @unique @db.VarChar(50) // usado no login
   cargo    CargoUsuario
   senha    String       @db.VarChar(100) // hash, nunca texto puro
   criadoEm DateTime     @default(now()) @map("criado_em") @db.Timestamptz(6)

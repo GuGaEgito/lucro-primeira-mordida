@@ -14,7 +14,7 @@ CREATE TYPE unidade_medida AS ENUM ('KG', 'G', 'L', 'ML', 'UN');
 -- ---------- USUÁRIO ----------
 CREATE TABLE usuario (
     id        SERIAL PRIMARY KEY,
-    nome      VARCHAR(50)  NOT NULL,
+    nome      VARCHAR(50)  NOT NULL UNIQUE,              -- usado no login
     cargo     cargo_usuario NOT NULL,
     senha     VARCHAR(100) NOT NULL,                 -- hash, nunca texto puro
     criado_em TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
