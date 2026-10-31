@@ -5,6 +5,10 @@ const PORT = Number(process.env.PORT ?? 3000);
 if (!Number.isInteger(PORT) || PORT <= 0) {
   throw new Error(`PORT inválida: "${process.env.PORT}"`);
 }
+// Sem segredo os tokens de login não podem ser assinados com segurança.
+if (!process.env.JWT_SECRET?.trim()) {
+  throw new Error("JWT_SECRET não definida: copie o .env.example para .env e preencha");
+}
 
 const servidor = criarApp().listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);

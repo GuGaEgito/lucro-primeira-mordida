@@ -4,13 +4,17 @@ const swaggerUi = require("swagger-ui-express");
 const { ZodError } = require("zod");
 const { openapi } = require("./docs/openapi");
 const { calculosRotas } = require("./modules/calculos.rotas");
+const { authRotas } = require("./routes/auth");
 const { ingredientesRotas } = require("./routes/ingredientes");
 const { produtosRotas } = require("./routes/produtos");
+const { usuariosRotas } = require("./routes/usuarios");
+const { autenticar, exigirCargo } = require("./shared/autenticacao");
 const { ErroCalculo } = require("./shared/numeros");
 
 // Formato único de erro da API: { codigo, erro, detalhes? }.
 // O front decide o que fazer pelo `codigo`; `erro` é a mensagem para mostrar ao usuário.
-// Códigos: DADOS_INVALIDOS, JSON_INVALIDO, CORPO_MUITO_GRANDE, ERRO_CALCULO, ROTA_NAO_ENCONTRADA, ERRO_INTERNO.
+// Códigos: DADOS_INVALIDOS, JSON_INVALIDO, CORPO_MUITO_GRANDE, ERRO_CALCULO, ROTA_NAO_ENCONTRADA, ERRO_INTERNO,
+// NAO_AUTENTICADO (401), CREDENCIAIS_INVALIDAS (401), SEM_PERMISSAO (403), NAO_ENCONTRADO, CONFLITO.
 function responderErro(res, status, codigo, erro, detalhes) {
   res.status(status).json({ codigo, erro, ...(detalhes && { detalhes }) });
 }
@@ -73,9 +77,12 @@ function criarApp() {
   });
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapi));
 
-  app.use("/api/calculos", calculosRotas);
-  app.use("/api/ingredientes", ingredientesRotas);
-  app.use("/api/produtos", produtosRotas);
+  // Só o login é público. As demais rotas exigem token; usuários só o GESTOR acessa.
+  app.use("/api/auth", authRotas);
+  app.use("/api/calculos", autenticar, calculosRotas);
+  app.use("/api/ingredientes", autenticar, ingredientesRotas);
+  app.use("/api/produtos", autenticar, produtosRotas);
+  app.use("/api/usuarios", autenticar, exigirCargo("GESTOR"), usuariosRotas);
 
   app.use((_req, res) => {
     responderErro(res, 404, "ROTA_NAO_ENCONTRADA", "Rota não encontrada");

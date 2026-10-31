@@ -87,3 +87,39 @@ Originalmente, a tabela `produtos` possuía uma chave estrangeira direta simples
 * **`POST /api/produtos`:** Cria o produto e seus ingredientes vinculados em uma única transação atômica.
 * **`PUT /api/produtos/:id`:** Permite atualizar os dados do produto e sincronizar toda a receita (remove itens antigos e insere a nova composição via `prisma.$transaction`).
 * **`GET /api/produtos` e `GET /api/produtos/:id`:** Retornam o produto com a receita completa discriminada (incluindo nome, unidade de cadastro e custo unitário de cada ingrediente).
+
+---
+
+## [30/10/2026] — Autenticação (JWT) e Controle de Acesso (GESTOR/FUNCIONARIO)
+
+### Contexto
+A tabela `usuario` existia, mas não havia login nem diferença entre gestor e funcionário: qualquer um que alcançasse a API podia chamar todas as rotas. Também faltava o `usuario_id` para gravar o `historico_custo_insumo`.
+
+---
+
+### O que foi feito
+
+#### 1. Dependências e ambiente
+* **`jsonwebtoken`** gera e confere o token; **`bcryptjs`** guarda a senha como hash (JavaScript puro, instala sem compilar no Windows).
+* `JWT_SECRET` e `JWT_EXPIRES_IN` (padrão `8h`) no `Back/.env.example` (já existiam no `.env` da raiz e no `docker-compose.yml`). O `server.js` não sobe sem `JWT_SECRET`.
+
+#### 2. Banco
+* Migration `20261030000000_usuario_nome_unico`: o `nome` do usuário passa a ser único, pois é usado no login.
+
+#### 3. Middlewares (`src/shared/autenticacao.js`)
+* `autenticar`: exige `Authorization: Bearer <token>` e preenche `req.usuario = { id, cargo }`. Sem token, token alterado ou vencido → `401 NAO_AUTENTICADO`.
+* `exigirCargo("GESTOR")`: cargo sem acesso → `403 SEM_PERMISSAO`.
+
+#### 4. Rotas novas
+* `POST /api/auth/login` (pública): `{ nome, senha }` → `{ token, usuario }`. Nome ou senha errados, ou usuário desativado → `401 CREDENCIAIS_INVALIDAS`.
+* `GET /api/auth/eu`: dados de quem está logado.
+* `GET /api/usuarios`, `POST /api/usuarios`, `PATCH /api/usuarios/:id/ativo` (só GESTOR).
+* Script `npm run criar-gestor -- <nome> <senha>` para criar o primeiro gestor.
+
+#### 5. Permissões nas rotas existentes
+* Só `/health`, `/api/docs`, `/api/openapi.json` e `/api/auth/login` são públicos.
+* FUNCIONARIO: consulta ingredientes e produtos e usa `/api/calculos`.
+* GESTOR: além disso, cria, altera e apaga ingredientes, produtos (com a receita) e usuários.
+* `PUT /api/ingredientes/:id` agora grava a troca de custo em `historico_custo_insumo` com o usuário logado.
+
+> **Limite conhecido:** desativar um usuário bloqueia novos logins, mas o token que ele já tem continua valendo até vencer.

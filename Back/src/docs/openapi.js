@@ -16,6 +16,7 @@ function respostas(schema) {
     200: { description: "Resultado do cálculo", content: { "application/json": { schema } } },
     400: { $ref: "#/components/responses/DadosInvalidos" },
     422: { $ref: "#/components/responses/ErroCalculo" },
+    401: { $ref: "#/components/responses/NaoAutenticado" },
   };
 }
 
@@ -63,15 +64,124 @@ const openapi = {
     title: "A Casa do Salgado - API",
     version: "1.0.0",
     description:
-      "Cálculos de custo, preço, margem, ponto de equilíbrio e simulações. Todas as rotas de cálculo são POST com JSON e não gravam nada no banco. Percentuais são informados como número de 0 a 100 (10 = 10%). Valores decimais voltam como texto para não perder centavos.",
+      "Cálculos de custo, preço, margem, ponto de equilíbrio e simulações. Todas as rotas de cálculo são POST com JSON e não gravam nada no banco. Percentuais são informados como número de 0 a 100 (10 = 10%). Valores decimais voltam como texto para não perder centavos. Faça login em POST /api/auth/login e use o token no botão Authorize: só o login, o health e a documentação são públicos.",
   },
   servers: [{ url: "http://localhost:3000" }],
-  tags: [{ name: "Cálculos" }, { name: "Sistema" }],
+  tags: [{ name: "Login" }, { name: "Usuários" }, { name: "Cálculos" }, { name: "Sistema" }],
+  // Todas as rotas exigem o token, exceto as que declaram security: [].
+  security: [{ bearerAuth: [] }],
   paths: {
+    "/api/auth/login": {
+      post: {
+        tags: ["Login"],
+        summary: "Entra com nome e senha e recebe o token (JWT)",
+        security: [],
+        requestBody: corpo(
+          {
+            type: "object",
+            required: ["nome", "senha"],
+            properties: { nome: { type: "string" }, senha: { type: "string" } },
+          },
+          { nome: "Luiz", senha: "12345" },
+        ),
+        responses: {
+          200: {
+            description: "Login feito. Envie o token em Authorization: Bearer <token>",
+            content: {
+              "application/json": {
+                example: {
+                  token: "eyJhbGciOiJIUzI1NiIs...",
+                  usuario: { id: 1, nome: "Luiz", cargo: "GESTOR" },
+                },
+              },
+            },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: {
+            description: "Nome ou senha incorretos (ou usuário desativado)",
+            content: {
+              "application/json": {
+                schema: ref("Erro"),
+                example: { codigo: "CREDENCIAIS_INVALIDAS", erro: "Nome ou senha incorretos" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/eu": {
+      get: {
+        tags: ["Login"],
+        summary: "Dados de quem está logado",
+        responses: {
+          200: {
+            description: "Usuário do token",
+            content: {
+              "application/json": {
+                example: { id: 1, nome: "Luiz", cargo: "GESTOR", ativo: true },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+        },
+      },
+    },
+    "/api/usuarios": {
+      get: {
+        tags: ["Usuários"],
+        summary: "Lista os usuários (só GESTOR)",
+        responses: {
+          200: { description: "Lista sem a senha" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+        },
+      },
+      post: {
+        tags: ["Usuários"],
+        summary: "Cadastra um usuário (só GESTOR)",
+        requestBody: corpo(
+          {
+            type: "object",
+            required: ["nome", "senha", "cargo"],
+            properties: {
+              nome: { type: "string" },
+              senha: { type: "string", minLength: 5 },
+              cargo: { type: "string", enum: ["GESTOR", "FUNCIONARIO"] },
+            },
+          },
+          { nome: "Maria", senha: "senha123", cargo: "FUNCIONARIO" },
+        ),
+        responses: {
+          201: { description: "Usuário criado (sem a senha)" },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          409: { description: "Já existe um usuário com esse nome" },
+        },
+      },
+    },
+    "/api/usuarios/{id}/ativo": {
+      patch: {
+        tags: ["Usuários"],
+        summary: "Ativa ou desativa um usuário (só GESTOR)",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        requestBody: corpo(
+          { type: "object", properties: { ativo: { type: "boolean" } } },
+          { ativo: false },
+        ),
+        responses: {
+          200: { description: "Usuário atualizado" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          404: { description: "Usuário não encontrado" },
+        },
+      },
+    },
     "/health": {
       get: {
         tags: ["Sistema"],
         summary: "Verifica se a API está no ar",
+        security: [],
         responses: {
           200: {
             description: "OK",
@@ -315,6 +425,9 @@ const openapi = {
     },
   },
   components: {
+    securitySchemes: {
+      bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+    },
     schemas: {
       FichaTecnica: {
         type: "object",
@@ -408,6 +521,24 @@ const openapi = {
       },
     },
     responses: {
+      NaoAutenticado: {
+        description: "Sem token, ou token inválido/expirado: faça login de novo",
+        content: {
+          "application/json": {
+            schema: ref("Erro"),
+            example: { codigo: "NAO_AUTENTICADO", erro: "Faça login para continuar" },
+          },
+        },
+      },
+      SemPermissao: {
+        description: "O cargo do usuário logado não pode fazer esta ação",
+        content: {
+          "application/json": {
+            schema: ref("Erro"),
+            example: { codigo: "SEM_PERMISSAO", erro: "Seu cargo não tem acesso a esta ação" },
+          },
+        },
+      },
       DadosInvalidos: {
         description: "Corpo da requisição inválido (campo faltando ou com formato errado)",
         content: {

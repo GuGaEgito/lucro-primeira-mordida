@@ -1,6 +1,7 @@
 const { Router } = require("express");
 const { z } = require("zod");
 const { prisma } = require("../shared/prisma");
+const { exigirCargo } = require("../shared/autenticacao");
 
 const produtosRotas = Router();
 
@@ -85,7 +86,7 @@ produtosRotas.get("/:id", async (req, res, next) => {
 });
 
 // POST /api/produtos — cria um produto com sua receita de ingredientes
-produtosRotas.post("/", async (req, res, next) => {
+produtosRotas.post("/", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const dados = criarProdutoBody.parse(req.body);
 
@@ -121,7 +122,7 @@ produtosRotas.post("/", async (req, res, next) => {
 });
 
 // PUT /api/produtos/:id — atualiza campos de um produto e/ou sua receita
-produtosRotas.put("/:id", async (req, res, next) => {
+produtosRotas.put("/:id", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
@@ -157,6 +158,8 @@ produtosRotas.put("/:id", async (req, res, next) => {
         }
       }
 
+      // Separa a receita (já gravada acima) dos campos da tabela produtos.
+      // eslint-disable-next-line no-unused-vars
       const { ingredientes, ...dadosProduto } = dados;
 
       return tx.produto.update({
@@ -182,7 +185,7 @@ produtosRotas.put("/:id", async (req, res, next) => {
 });
 
 // PATCH /api/produtos/:id/ativo — ativa ou desativa um produto
-produtosRotas.patch("/:id/ativo", async (req, res, next) => {
+produtosRotas.patch("/:id/ativo", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
@@ -207,7 +210,7 @@ produtosRotas.patch("/:id/ativo", async (req, res, next) => {
 });
 
 // DELETE /api/produtos/:id — remove permanentemente um produto (itens da receita são excluídos em cascata)
-produtosRotas.delete("/:id", async (req, res, next) => {
+produtosRotas.delete("/:id", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
