@@ -54,8 +54,31 @@ function calcularPrecoSugerido(custoUnitario, percentuais) {
   };
 }
 
+// Diz se o preço é rentável comparando o lucro com a meta (percentuais.lucro, opcional):
+// - PREJUIZO: o lucro por salgado é negativo;
+// - ABAIXO_DA_META: não dá prejuízo, mas a margem de lucro fica abaixo da meta (ou o lucro é zero);
+// - RENTAVEL: o lucro é positivo e a margem alcança a meta.
+function avaliarRentabilidade(lucroUnitario, margemLucroPercentual, lucroDesejado) {
+  const meta = lucroDesejado === undefined ? new Decimal(0) : dec(lucroDesejado);
+  if (lucroUnitario.lt(0)) {
+    return {
+      situacao: "PREJUIZO",
+      mensagem: "O preço não cobre os custos: cada salgado vendido dá prejuízo.",
+    };
+  }
+  if (lucroUnitario.isZero() || margemLucroPercentual.lt(meta)) {
+    return {
+      situacao: "ABAIXO_DA_META",
+      mensagem: lucroUnitario.isZero()
+        ? "O preço só empata com os custos e não deixa lucro."
+        : `Dá lucro, mas a margem fica abaixo da meta de ${meta.toString()}%.`,
+    };
+  }
+  return { situacao: "RENTAVEL", mensagem: "O preço cobre os custos e alcança a meta de lucro." };
+}
+
 // Mostra o que um preço (sugerido ou ajustado pelo gestor) realmente deixa de margem e lucro.
-// Usa só custoFixo e despesasVariaveis dos percentuais.
+// Usa custoFixo e despesasVariaveis dos percentuais; lucro (opcional) é a meta usada na situação.
 function analisarPreco(precoVenda, custoUnitario, percentuais) {
   const preco = dec(precoVenda);
   const custo = dec(custoUnitario);
@@ -72,6 +95,9 @@ function analisarPreco(precoVenda, custoUnitario, percentuais) {
   const margemContribuicao = preco.sub(custo).sub(despesasVariaveis);
   // Lucro = margem de contribuição - parte do custo fixo
   const lucroUnitario = margemContribuicao.sub(custoFixoRateado);
+  const margemLucro = lucroUnitario.div(preco).mul(100);
+  if (percentuais.lucro !== undefined)
+    exigirPercentual(dec(percentuais.lucro), "Percentual de lucro");
 
   return {
     precoVenda: dinheiro(preco),
@@ -81,10 +107,11 @@ function analisarPreco(precoVenda, custoUnitario, percentuais) {
     margemContribuicao: dinheiro(margemContribuicao),
     margemContribuicaoPercentual: margemContribuicao.div(preco).mul(100).toDecimalPlaces(2),
     lucroUnitario: dinheiro(lucroUnitario),
-    margemLucroPercentual: lucroUnitario.div(preco).mul(100).toDecimalPlaces(2),
+    margemLucroPercentual: margemLucro.toDecimalPlaces(2),
     // CMV % (food cost) = custo do salgado / preço
     cmvPercentual: custo.div(preco).mul(100).toDecimalPlaces(2),
+    ...avaliarRentabilidade(lucroUnitario, margemLucro, percentuais.lucro),
   };
 }
 
-module.exports = { calcularMarkup, calcularPrecoSugerido, analisarPreco };
+module.exports = { calcularMarkup, calcularPrecoSugerido, analisarPreco, avaliarRentabilidade };

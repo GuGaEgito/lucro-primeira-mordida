@@ -13,6 +13,7 @@ const {
   calcularMarkup,
   calcularPrecoSugerido,
 } = require("../src/modules/precificacao/precificacao.calculo");
+const { precificarProduto } = require("../src/modules/precificacao/precificacao-produto");
 const {
   calcularPontoEquilibrio,
   calcularPontoEquilibrioMix,
@@ -147,6 +148,76 @@ describe("precificação", () => {
     igual(analise.lucroUnitario, "0.17");
     igual(analise.margemLucroPercentual, "15.23");
     igual(analise.cmvPercentual, "54.77");
+  });
+  it("diz que o preço é rentável quando alcança a meta de lucro", () => {
+    assert.equal(analisarPreco("1.10", "0.6025", percentuais).situacao, "RENTAVEL");
+  });
+  it("diz que está abaixo da meta quando o lucro é menor que o desejado", () => {
+    const analise = analisarPreco("1.00", "0.6025", percentuais);
+    igual(analise.margemLucroPercentual, "9.75");
+    assert.equal(analise.situacao, "ABAIXO_DA_META");
+  });
+  it("diz que dá prejuízo quando o lucro é negativo", () => {
+    assert.equal(analisarPreco("0.70", "0.6025", percentuais).situacao, "PREJUIZO");
+  });
+  it("sem meta de lucro, qualquer lucro positivo é rentável", () => {
+    const { situacao } = analisarPreco("1.00", "0.6025", { custoFixo: 20, despesasVariaveis: 10 });
+    assert.equal(situacao, "RENTAVEL");
+  });
+  it("lucro zero fica abaixo da meta", () => {
+    // 0.70 x (1 - 10% - 20%) = 0.49 de margem, igual ao custo: lucro zero.
+    const { situacao } = analisarPreco("0.70", "0.49", { custoFixo: 20, despesasVariaveis: 10 });
+    assert.equal(situacao, "ABAIXO_DA_META");
+  });
+});
+
+describe("precificação do produto salvo", () => {
+  // Mesmo formato que o Prisma devolve em GET /api/produtos/:id.
+  const produtoDoBanco = (precoVenda, itens = coxinha.itens) => ({
+    id: 3,
+    nome: "Coxinha",
+    rendimento: "40",
+    precoVenda,
+    ingredientes: itens.map((item) => ({
+      quantidade: String(item.quantidade * (item.fatorCorrecao ?? 1)),
+      unidadeReceita: item.unidadeReceita,
+      ingrediente: {
+        id: item.ingredienteId,
+        nome: item.nome,
+        unidade: item.unidadeCadastro,
+        custoUnitario: item.custoUnitario,
+      },
+    })),
+  });
+  const custosFixos = [
+    { nome: "Aluguel", valorMensal: "1500" },
+    { nome: "Energia", valorMensal: "500" },
+  ];
+  const parametros = { faturamentoMensal: 10000, despesasVariaveis: 10, lucro: 15 };
+
+  it("usa a receita e os custos fixos do banco para sugerir o preço", () => {
+    const resultado = precificarProduto(produtoDoBanco("1.10"), custosFixos, parametros);
+    igual(resultado.fichaTecnica.custoPorUnidade, "0.6025");
+    igual(resultado.custosFixos.totalMensal, "2000");
+    igual(resultado.custosFixos.percentualSobreFaturamento, "20");
+    igual(resultado.precoSugerido.precoSugerido, "1.1");
+    assert.equal(resultado.analisePrecoAtual.situacao, "RENTAVEL");
+  });
+  it("avisa prejuízo no preço atual", () => {
+    const resultado = precificarProduto(produtoDoBanco("0.70"), custosFixos, parametros);
+    assert.equal(resultado.analisePrecoAtual.situacao, "PREJUIZO");
+  });
+  it("sem preço de venda, não analisa o preço atual", () => {
+    assert.equal(
+      precificarProduto(produtoDoBanco(null), custosFixos, parametros).analisePrecoAtual,
+      null,
+    );
+  });
+  it("recusa produto sem receita", () => {
+    assert.throws(
+      () => precificarProduto(produtoDoBanco("1.10", []), custosFixos, parametros),
+      ErroCalculo,
+    );
   });
 });
 

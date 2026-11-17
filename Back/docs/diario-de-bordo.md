@@ -123,3 +123,33 @@ A tabela `usuario` existia, mas não havia login nem diferença entre gestor e f
 * `PUT /api/ingredientes/:id` agora grava a troca de custo em `historico_custo_insumo` com o usuário logado.
 
 > **Limite conhecido:** desativar um usuário bloqueia novos logins, mas o token que ele já tem continua valendo até vencer.
+
+---
+
+## [17/11/2026] — Custos fixos, precificação do produto salvo e veredito de rentabilidade
+
+### Contexto
+A tabela `custo_fixo` existia, mas não havia rota para cadastrá-la (RF12/RF13). As rotas de `/api/calculos` só funcionavam se o front mandasse todos os números, sem usar o que já está salvo no banco. E a análise de preço devolvia margem e lucro, mas não dizia se o preço era rentável.
+
+---
+
+### O que foi feito
+
+#### 1. Rotas de custos fixos (`src/routes/custos-fixos.js`)
+* `GET /api/custos-fixos` — lista os custos e o total do mês (`{ itens, totalMensal }`).
+* `GET /api/custos-fixos/:id` — busca um custo fixo.
+* `POST`, `PUT /:id`, `DELETE /:id` — só GESTOR. Nome repetido → `409 CONFLITO`.
+
+#### 2. Precificação do produto salvo (`POST /api/produtos/:id/precificacao`)
+* Recebe só `{ faturamentoMensal, despesasVariaveis, lucro }`.
+* Monta a ficha técnica com a receita e o custo atual dos ingredientes, soma os custos fixos do banco, calcula o % de custo fixo sobre o faturamento, o preço sugerido (markup) e a análise do preço atual.
+* A lógica fica em `src/modules/precificacao/precificacao-produto.js` (função pura, testada sem banco).
+* Produto sem receita → `422 ERRO_CALCULO`. Não grava nada; FUNCIONARIO também pode usar.
+
+#### 3. Veredito de rentabilidade
+* `analisarPreco` agora devolve `situacao` (`RENTAVEL`, `ABAIXO_DA_META`, `PREJUIZO`) e `mensagem`.
+* Em `/api/calculos/analise-preco`, `percentuais.lucro` (a meta) passou a ser opcional; sem ele, qualquer lucro positivo é rentável. Quem já usava a rota não quebra.
+
+#### 4. Documentação e testes
+* `/api/docs` com as rotas novas e o campo `situacao`.
+* 11 testes novos (45 no total). As rotas também foram testadas com um Postgres 16 de verdade (migrations aplicadas, cadastro, conflito, 404, cálculo da coxinha).
