@@ -50,7 +50,7 @@ const precoSugeridoBody = z.object({ custoUnitario: numero, percentuais: percent
 const analisePrecoBody = z.object({
   precoVenda: numero,
   custoUnitario: numero,
-  percentuais: percentuaisPreco.omit({ lucro: true }),
+  percentuais: percentuaisPreco.extend({ lucro: numero.optional() }),
 });
 
 const pontoEquilibrioBody = z.object({

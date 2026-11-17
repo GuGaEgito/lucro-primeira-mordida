@@ -67,9 +67,9 @@ O **primeiro gestor** é criado pelo terminal, dentro de `Back/`: `npm run criar
 | Rota | Sem login | FUNCIONARIO | GESTOR |
 | --- | --- | --- | --- |
 | `/health`, `/api/docs`, `/api/openapi.json`, `POST /api/auth/login` | sim | sim | sim |
-| `GET /api/auth/eu`, `POST /api/calculos/*` | não | sim | sim |
-| `GET` de ingredientes e produtos | não | sim | sim |
-| `POST`, `PUT`, `PATCH`, `DELETE` de ingredientes e produtos | não | não (403) | sim |
+| `GET /api/auth/eu`, `POST /api/calculos/*`, `POST /api/produtos/:id/precificacao` | não | sim | sim |
+| `GET` de ingredientes, produtos e custos fixos | não | sim | sim |
+| `POST`, `PUT`, `PATCH`, `DELETE` de ingredientes, produtos e custos fixos | não | não (403) | sim |
 | `/api/usuarios` | não | não (403) | sim |
 
 Ou seja: o funcionário consulta e simula; quem mexe em custo, preço, receita e usuários é o gestor.
@@ -157,7 +157,7 @@ Cada percentual tem que ficar entre 0 e 99,99, e a soma dos três tem que ser me
 
 **Para que serve:** pegar um preço que já existe (ou que o gestor quer usar) e mostrar o que ele realmente deixa de lucro.
 
-**Entrada:** `precoVenda`, `custoUnitario` e `percentuais` só com `custoFixo` e `despesasVariaveis` (aqui não vai lucro, porque o lucro é o que a rota calcula).
+**Entrada:** `precoVenda`, `custoUnitario` e `percentuais` com `custoFixo`, `despesasVariaveis` e, opcional, `lucro` (a meta de lucro em %, usada só para dizer se o preço é rentável).
 
 **Saída e contas:**
 
@@ -167,7 +167,12 @@ Cada percentual tem que ficar entre 0 e 99,99, e a soma dos três tem que ser me
 - `lucroUnitario` = margem de contribuição − custo fixo rateado (e `margemLucroPercentual` = lucro ÷ preço × 100)
 - `cmvPercentual` (food cost) = custo do salgado ÷ preço × 100
 
-Se o lucro sair negativo, a rota **não** dá erro: ela devolve o número negativo. Quem interpreta é o front.
+- `situacao` e `mensagem`: o veredito de rentabilidade.
+  - `PREJUIZO`: o lucro por salgado é negativo.
+  - `ABAIXO_DA_META`: o lucro é zero, ou a margem de lucro fica abaixo da meta (`percentuais.lucro`).
+  - `RENTAVEL`: o lucro é positivo e a margem alcança a meta. Sem meta, qualquer lucro positivo é rentável.
+
+Se o lucro sair negativo, a rota **não** dá erro: devolve o número negativo com `situacao: "PREJUIZO"`.
 
 ### 6. POST /api/calculos/ponto-equilibrio
 
@@ -225,6 +230,33 @@ Se a margem for zero ou negativa, dá erro, porque nesse caso nenhuma quantidade
 
 **Contas:** novo custo do ingrediente = custo × (1 + % ÷ 100). Depois recalcula a ficha (rota 1) e o preço sugerido (rota 4) com o custo novo.
 
+## Custos fixos e precificação do produto salvo
+
+### /api/custos-fixos (RF12 / RF13)
+
+Cadastro dos custos fixos do mês (aluguel, energia, gás, salários...), na tabela `custo_fixo`.
+
+- `GET /api/custos-fixos` devolve `{ itens, totalMensal }`.
+- `GET /api/custos-fixos/:id` busca um.
+- `POST` (`{ nome, valorMensal }`), `PUT /:id` (um ou os dois campos) e `DELETE /:id` só para o GESTOR. Nome repetido → `409 CONFLITO`.
+
+### POST /api/produtos/:id/precificacao
+
+**Para que serve:** calcular tudo de um produto já cadastrado, sem o front precisar mandar a receita.
+
+**Entrada:** só o que o banco não guarda: `{ faturamentoMensal, despesasVariaveis, lucro }` (percentuais de 0 a 100).
+
+**O que ela faz:**
+
+1. Pega a receita do produto e o custo atual de cada ingrediente, e calcula a ficha técnica (igual a `/api/calculos/ficha-tecnica`).
+2. Soma os custos fixos cadastrados e calcula `% custo fixo = total ÷ faturamentoMensal × 100`.
+3. Calcula o preço sugerido com o markup (igual a `/api/calculos/preco-sugerido`).
+4. Se o produto tem preço de venda, analisa esse preço (igual a `/api/calculos/analise-preco`, com `situacao`). Sem preço, `analisePrecoAtual` vem `null`.
+
+**Saída:** `{ produto, fichaTecnica, custosFixos: { totalMensal, percentualSobreFaturamento }, precoSugerido, analisePrecoAtual }`.
+
+Produto sem receita → `422 ERRO_CALCULO`. Não grava nada, por isso o FUNCIONARIO também pode usar.
+
 ## Arredondamento
 
 - Valores em dinheiro: 2 casas, arredondando o meio para cima (ex.: 2,345 vira 2,35). Isso só acontece no resultado final, nunca no meio da conta.
@@ -275,9 +307,9 @@ Desde 30/10 cada salgado guarda a receita inteira em `produto_ingredientes` (vá
 
 ## O que ainda NÃO faz
 
-1. **Rotas de custos fixos no banco.** As rotas de `ingredientes`, `produtos` e `usuarios` já foram criadas (ver [Diário de Bordo](./diario-de-bordo.md)), restando ainda os endpoints para custos fixos.
+1. ~~Rotas de custos fixos no banco.~~ Feito em 17/11: `/api/custos-fixos`.
 2. ~~Falta a tabela produto x ingrediente.~~ Feito em 30/10 pelo Guilherme: `produto_ingredientes` e o campo `rendimento` (ver [Diário de Bordo](./diario-de-bordo.md)).
-3. **Falta a avaliação "rentável ou não".** A análise de preço devolve os números (margem, lucro, CMV), mas não diz "este salgado dá lucro", "está no limite" ou "dá prejuízo".
+3. ~~Falta a avaliação "rentável ou não".~~ Feito em 17/11: campo `situacao` na análise de preço e na precificação do produto.
 4. ~~O histórico de custo não é preenchido.~~ Feito em 30/10: o `PUT /api/ingredientes/:id` grava a mudança de custo com o usuário logado.
 5. ~~Não tem login nem permissão.~~ Feito em 30/10: login com JWT (`POST /api/auth/login`), FUNCIONARIO só consulta e calcula, GESTOR cria, altera e apaga. Veja "Login e permissões" no `Back/README.md`.
 6. ~~**Falta o adaptador do Prisma 7.**~~ Concluído: `@prisma/adapter-pg` instalado e configurado em `src/shared/prisma.js`.
@@ -285,4 +317,4 @@ Desde 30/10 cada salgado guarda a receita inteira em `produto_ingredientes` (vá
 
 ## Testes
 
-`npm test` roda 34 testes em três arquivos: `tests/calculos.test.js` testa as fórmulas, `tests/api.test.js` chama as rotas de verdade (com supertest, já mandando um token) e confere respostas e erros, e `tests/autenticacao.test.js` confere o login sem precisar de banco: sem token (401), token alterado, de outro segredo ou vencido (401), funcionário em rota de gestor (403) e gestor passando.
+`npm test` roda 45 testes em três arquivos: `tests/calculos.test.js` testa as fórmulas, `tests/api.test.js` chama as rotas de verdade (com supertest, já mandando um token) e confere respostas e erros, e `tests/autenticacao.test.js` confere o login sem precisar de banco: sem token (401), token alterado, de outro segredo ou vencido (401), funcionário em rota de gestor (403) e gestor passando.

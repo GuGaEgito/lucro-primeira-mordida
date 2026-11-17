@@ -53,6 +53,8 @@ describe("API", () => {
     await api.get("/health").expect(200, { status: "ok" });
     const docs = await api.get("/api/openapi.json").expect(200);
     assert.ok(docs.body.paths["/api/calculos/ficha-tecnica"]);
+    assert.ok(docs.body.paths["/api/custos-fixos"]);
+    assert.ok(docs.body.paths["/api/produtos/{id}/precificacao"]);
   });
 
   it("libera CORS para o front", async () => {
@@ -105,6 +107,24 @@ describe("API", () => {
       })
       .expect(200);
     assert.equal(analise.body.lucroUnitario, "0.17");
+    assert.equal(analise.body.situacao, "RENTAVEL");
+
+    const abaixo = await api
+      .post("/api/calculos/analise-preco")
+      .send({
+        precoVenda: "1.00",
+        custoUnitario: "0.6025",
+        percentuais: { custoFixo: 20, despesasVariaveis: 10, lucro: 15 },
+      })
+      .expect(200);
+    assert.equal(abaixo.body.situacao, "ABAIXO_DA_META");
+  });
+
+  it("valida a precificação do produto antes de ir ao banco", async () => {
+    const idInvalido = await api.post("/api/produtos/abc/precificacao").send({}).expect(400);
+    assert.equal(idInvalido.body.codigo, "DADOS_INVALIDOS");
+    const semParametros = await api.post("/api/produtos/1/precificacao").send({}).expect(400);
+    assert.equal(semParametros.body.codigo, "DADOS_INVALIDOS");
   });
 
   it("calcula ponto de equilíbrio e simulações", async () => {

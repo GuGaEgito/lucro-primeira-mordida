@@ -67,7 +67,14 @@ const openapi = {
       "Cálculos de custo, preço, margem, ponto de equilíbrio e simulações. Todas as rotas de cálculo são POST com JSON e não gravam nada no banco. Percentuais são informados como número de 0 a 100 (10 = 10%). Valores decimais voltam como texto para não perder centavos. Faça login em POST /api/auth/login e use o token no botão Authorize: só o login, o health e a documentação são públicos.",
   },
   servers: [{ url: "http://localhost:3000" }],
-  tags: [{ name: "Login" }, { name: "Usuários" }, { name: "Cálculos" }, { name: "Sistema" }],
+  tags: [
+    { name: "Login" },
+    { name: "Usuários" },
+    { name: "Custos fixos" },
+    { name: "Produtos" },
+    { name: "Cálculos" },
+    { name: "Sistema" },
+  ],
   // Todas as rotas exigem o token, exceto as que declaram security: [].
   security: [{ bearerAuth: [] }],
   paths: {
@@ -190,6 +197,112 @@ const openapi = {
         },
       },
     },
+    "/api/custos-fixos": {
+      get: {
+        tags: ["Custos fixos"],
+        summary: "Lista os custos fixos mensais e o total do mês",
+        responses: {
+          200: {
+            description: "Custos e total",
+            content: {
+              "application/json": {
+                example: {
+                  itens: [{ id: 1, nome: "Aluguel", valorMensal: "1500", atualizadoEm: "..." }],
+                  totalMensal: "1500",
+                },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+        },
+      },
+      post: {
+        tags: ["Custos fixos"],
+        summary: "Cadastra um custo fixo (só GESTOR)",
+        requestBody: corpo(ref("CustoFixo"), { nome: "Aluguel", valorMensal: 1500 }),
+        responses: {
+          201: { description: "Custo fixo criado" },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          409: { description: "Já existe um custo fixo com esse nome" },
+        },
+      },
+    },
+    "/api/custos-fixos/{id}": {
+      parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+      get: {
+        tags: ["Custos fixos"],
+        summary: "Busca um custo fixo",
+        responses: {
+          200: { description: "Custo fixo" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          404: { description: "Custo fixo não encontrado" },
+        },
+      },
+      put: {
+        tags: ["Custos fixos"],
+        summary: "Altera nome e/ou valor mensal (só GESTOR)",
+        requestBody: corpo(ref("CustoFixo"), { valorMensal: 1600 }),
+        responses: {
+          200: { description: "Custo fixo atualizado" },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          404: { description: "Custo fixo não encontrado" },
+          409: { description: "Já existe um custo fixo com esse nome" },
+        },
+      },
+      delete: {
+        tags: ["Custos fixos"],
+        summary: "Remove um custo fixo (só GESTOR)",
+        responses: {
+          204: { description: "Removido" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          404: { description: "Custo fixo não encontrado" },
+        },
+      },
+    },
+    "/api/produtos/{id}/precificacao": {
+      post: {
+        tags: ["Produtos"],
+        summary: "Custo, preço sugerido e rentabilidade de um produto salvo",
+        description:
+          "Usa a receita do produto, o custo atual de cada ingrediente e a soma dos custos fixos cadastrados. O % de custo fixo é calculado como custos fixos / faturamentoMensal. Não grava nada; o FUNCIONARIO também pode usar. analisePrecoAtual é null se o produto não tem preço de venda. Produto sem receita → 422.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        requestBody: corpo(
+          {
+            type: "object",
+            required: ["faturamentoMensal", "despesasVariaveis", "lucro"],
+            properties: {
+              faturamentoMensal: { ...numero, description: "Faturamento médio do mês em R$" },
+              despesasVariaveis: { ...numero, description: "% de impostos, cartão, embalagem..." },
+              lucro: { ...numero, description: "% de lucro desejado" },
+            },
+          },
+          { faturamentoMensal: 10000, despesasVariaveis: 10, lucro: 15 },
+        ),
+        responses: {
+          ...respostas({
+            type: "object",
+            properties: {
+              produto: { type: "object" },
+              fichaTecnica: { type: "object", description: "Igual a /api/calculos/ficha-tecnica" },
+              custosFixos: objetoDecimais(["totalMensal", "percentualSobreFaturamento"]),
+              precoSugerido: objetoDecimais([
+                "divisor",
+                "multiplicador",
+                "custoUnitario",
+                "precoSugerido",
+              ]),
+              analisePrecoAtual: { allOf: [ref("AnalisePreco")], nullable: true },
+            },
+          }),
+          404: { description: "Produto não encontrado" },
+        },
+      },
+    },
     "/api/calculos/ficha-tecnica": {
       post: {
         tags: ["Cálculos"],
@@ -295,29 +408,21 @@ const openapi = {
               percentuais: {
                 type: "object",
                 required: ["custoFixo", "despesasVariaveis"],
-                properties: { custoFixo: numero, despesasVariaveis: numero },
+                properties: {
+                  custoFixo: numero,
+                  despesasVariaveis: numero,
+                  lucro: { ...numero, description: "Meta de lucro em % (opcional, padrão 0)" },
+                },
               },
             },
           },
           {
             precoVenda: "1.10",
             custoUnitario: "0.6025",
-            percentuais: { custoFixo: 20, despesasVariaveis: 10 },
+            percentuais: { custoFixo: 20, despesasVariaveis: 10, lucro: 15 },
           },
         ),
-        responses: respostas(
-          objetoDecimais([
-            "precoVenda",
-            "custoUnitario",
-            "despesasVariaveis",
-            "custoFixoRateado",
-            "margemContribuicao",
-            "margemContribuicaoPercentual",
-            "lucroUnitario",
-            "margemLucroPercentual",
-            "cmvPercentual",
-          ]),
-        ),
+        responses: respostas(ref("AnalisePreco")),
       },
     },
     "/api/calculos/ponto-equilibrio": {
@@ -429,6 +534,36 @@ const openapi = {
       bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
     },
     schemas: {
+      CustoFixo: {
+        type: "object",
+        properties: {
+          nome: { type: "string", maxLength: 50 },
+          valorMensal: { type: "number", minimum: 0 },
+        },
+      },
+      AnalisePreco: {
+        type: "object",
+        properties: {
+          ...objetoDecimais([
+            "precoVenda",
+            "custoUnitario",
+            "despesasVariaveis",
+            "custoFixoRateado",
+            "margemContribuicao",
+            "margemContribuicaoPercentual",
+            "lucroUnitario",
+            "margemLucroPercentual",
+            "cmvPercentual",
+          ]).properties,
+          situacao: {
+            type: "string",
+            enum: ["RENTAVEL", "ABAIXO_DA_META", "PREJUIZO"],
+            description:
+              "PREJUIZO: lucro negativo. ABAIXO_DA_META: lucro zero ou margem abaixo da meta. RENTAVEL: lucro positivo e margem na meta ou acima.",
+          },
+          mensagem: { type: "string", description: "Explicação curta para mostrar ao usuário" },
+        },
+      },
       FichaTecnica: {
         type: "object",
         required: ["rendimento", "itens"],

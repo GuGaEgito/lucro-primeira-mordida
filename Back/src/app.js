@@ -5,6 +5,7 @@ const { ZodError } = require("zod");
 const { openapi } = require("./docs/openapi");
 const { calculosRotas } = require("./modules/calculos.rotas");
 const { authRotas } = require("./routes/auth");
+const { custosFixosRotas } = require("./routes/custos-fixos");
 const { ingredientesRotas } = require("./routes/ingredientes");
 const { produtosRotas } = require("./routes/produtos");
 const { usuariosRotas } = require("./routes/usuarios");
@@ -80,6 +81,7 @@ function criarApp() {
   // Só o login é público. As demais rotas exigem token; usuários só o GESTOR acessa.
   app.use("/api/auth", authRotas);
   app.use("/api/calculos", autenticar, calculosRotas);
+  app.use("/api/custos-fixos", autenticar, custosFixosRotas);
   app.use("/api/ingredientes", autenticar, ingredientesRotas);
   app.use("/api/produtos", autenticar, produtosRotas);
   app.use("/api/usuarios", autenticar, exigirCargo("GESTOR"), usuariosRotas);

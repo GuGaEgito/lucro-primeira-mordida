@@ -44,6 +44,9 @@ describe("Autenticação", () => {
       request(app).put("/api/produtos/1").send({}),
       request(app).delete("/api/produtos/1"),
       request(app).get("/api/usuarios"),
+      request(app).post("/api/custos-fixos").send({}),
+      request(app).put("/api/custos-fixos/1").send({}),
+      request(app).delete("/api/custos-fixos/1"),
     ];
     for (const req of rotas) {
       const res = await req.set(bearer(funcionario)).expect(403);
@@ -57,6 +60,15 @@ describe("Autenticação", () => {
       .post("/api/ingredientes")
       .set(bearer(gestor))
       .send({})
+      .expect(400);
+    assert.equal(res.body.codigo, "DADOS_INVALIDOS");
+  });
+
+  it("valida o corpo do custo fixo", async () => {
+    const res = await request(app)
+      .post("/api/custos-fixos")
+      .set(bearer(gestor))
+      .send({ nome: "Aluguel", valorMensal: -1 })
       .expect(400);
     assert.equal(res.body.codigo, "DADOS_INVALIDOS");
   });

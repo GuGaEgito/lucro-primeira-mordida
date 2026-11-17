@@ -2,6 +2,8 @@ const { Router } = require("express");
 const { z } = require("zod");
 const { prisma } = require("../shared/prisma");
 const { exigirCargo } = require("../shared/autenticacao");
+const { numero } = require("../shared/validacao");
+const { precificarProduto } = require("../modules/precificacao/precificacao-produto");
 
 const produtosRotas = Router();
 
@@ -28,6 +30,13 @@ const atualizarProdutoBody = z.object({
   precoVenda: z.number().nonnegative("Preço de venda não pode ser negativo").nullable().optional(),
   ativo: z.boolean().optional(),
   ingredientes: z.array(itemReceitaSchema).optional(),
+});
+
+// Parâmetros que o banco não guarda; percentuais de 0 a 100 (10 = 10%).
+const precificacaoBody = z.object({
+  faturamentoMensal: numero,
+  despesasVariaveis: numero,
+  lucro: numero,
 });
 
 const ativoBody = z.object({
@@ -205,6 +214,32 @@ produtosRotas.patch("/:id/ativo", exigirCargo("GESTOR"), async (req, res, next) 
     if (err?.code === "P2025") {
       return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Produto não encontrado" });
     }
+    next(err);
+  }
+});
+
+// POST /api/produtos/:id/precificacao — custo, preço sugerido e se o preço atual é rentável,
+// usando a receita, os custos dos ingredientes e os custos fixos salvos no banco.
+// Só calcula, não grava nada; por isso o FUNCIONARIO também pode usar.
+produtosRotas.post("/:id/precificacao", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ codigo: "DADOS_INVALIDOS", erro: "ID inválido" });
+    }
+
+    const parametros = precificacaoBody.parse(req.body);
+
+    const [produto, custosFixos] = await Promise.all([
+      prisma.produto.findUnique({ where: { id }, include: includeIngredientes }),
+      prisma.custoFixo.findMany(),
+    ]);
+    if (!produto) {
+      return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Produto não encontrado" });
+    }
+
+    res.json(precificarProduto(produto, custosFixos, parametros));
+  } catch (err) {
     next(err);
   }
 });
