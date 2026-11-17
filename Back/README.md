@@ -365,19 +365,10 @@ O PostgreSQL 16 roda no Docker (ver `docker-compose.yml` na raiz). O Prisma desc
 
 Detalhes:
 
-- Datas usam `timestamptz` (com fuso), no fuso `America/Sao_Paulo`.
+- Datas usam `timestamptz` (com fuso). O banco do Docker roda em `America/Sao_Paulo`, mas a conexão do back usa a sessão em UTC (`src/shared/prisma.js`), porque o `@prisma/adapter-pg` grava as datas 3h adiantadas em outro fuso. A API devolve as datas em UTC (ISO 8601, terminando em `Z`).
 - Valores em dinheiro têm `CHECK >= 0` no próprio banco (migration `20261020000000_tipos_e_restricoes`).
 - O cliente do Prisma é gerado em JavaScript (`provider = "prisma-client-js"`) em `src/generated/prisma`, que fica fora do git. Rode `npm run prisma:generate` depois de instalar ou mudar o schema.
-- No Prisma 7 o cliente precisa de um adaptador de banco. Quando as rotas de cadastro forem criadas, instale `@prisma/adapter-pg` e crie o cliente assim:
-
-```js
-const { PrismaClient } = require("./generated/prisma");
-const { PrismaPg } = require("@prisma/adapter-pg");
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-});
-```
+- No Prisma 7 o cliente precisa de um adaptador de banco (`@prisma/adapter-pg`). A instância única fica em `src/shared/prisma.js`; importe de lá.
 
 Para mudar o banco: altere o `schema.prisma`, rode `npm run prisma:migrate` (cria a migration e aplica) e faça commit da pasta nova em `prisma/migrations/`.
 
@@ -387,7 +378,8 @@ Para mudar o banco: altere o `schema.prisma`, rode `npm run prisma:migrate` (cri
 
 - `tests/calculos.test.js` chama as fórmulas diretamente e confere os valores (ex.: preço sugerido `1.1`, ponto de equilíbrio `1000`).
 - `tests/api.test.js` sobe o app em memória com o supertest e testa as rotas, o CORS e cada tipo de erro.
-- São 28 testes. Rode com `npm test`.
+- `tests/banco.test.js` usa um Postgres de verdade (datas e histórico de custo). Só roda com `TEST_DATABASE_URL` definida; sem ela, fica como pulado. Use um banco de testes.
+- São 49 testes (46 sem banco). Rode com `npm test`.
 - O GitHub Actions (`.github/workflows/ci.yml`) roda em todo push e pull request que mexe em `Back/`: instala as dependências, gera o cliente do Prisma, roda o lint e os testes. Se algum falhar, o PR fica com um X vermelho.
 
 ---
@@ -428,7 +420,7 @@ Exemplo: uma rota que calcula o CMV de um salgado.
 - `src/shared/autenticacao.js` tem os middlewares: `autenticar` (exige `Authorization: Bearer <token>` e preenche `req.usuario = { id, cargo }`) e `exigirCargo("GESTOR")`.
 - No `app.js`, só `/health`, `/api/docs`, `/api/openapi.json` e `/api/auth/login` são públicos. FUNCIONARIO lê ingredientes e produtos e usa os cálculos; criar, alterar e apagar é só do GESTOR.
 - Erros: `401 NAO_AUTENTICADO` (sem token, token alterado ou vencido), `401 CREDENCIAIS_INVALIDAS` (nome ou senha errados, ou usuário desativado), `403 SEM_PERMISSAO`.
-- Ao mudar o `custoUnitario` de um ingrediente, o `PUT /api/ingredientes/:id` grava a mudança em `historico_custo_insumo` com o usuário logado.
+- Ao mudar o `custoUnitario` de um ingrediente, o `PUT /api/ingredientes/:id` grava a mudança em `historico_custo_insumo` com o usuário logado. `GET /api/ingredientes/:id/historico` lista essas mudanças (qualquer usuário logado).
 - Primeiro gestor: `npm run criar-gestor -- <nome> <senha>`.
 - Limite conhecido: desativar um usuário bloqueia novos logins, mas o token que ele já tem continua valendo até vencer.
 

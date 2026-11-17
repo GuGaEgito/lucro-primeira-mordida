@@ -77,4 +77,14 @@ describe("Autenticação", () => {
     const res = await request(app).post("/api/auth/login").send({ nome: "" }).expect(400);
     assert.equal(res.body.codigo, "DADOS_INVALIDOS");
   });
+
+  it("histórico de custo: exige login e recusa ID inválido antes de ir ao banco", async () => {
+    const semToken = await request(app).get("/api/ingredientes/1/historico").expect(401);
+    assert.equal(semToken.body.codigo, "NAO_AUTENTICADO");
+    const res = await request(app)
+      .get("/api/ingredientes/abc/historico")
+      .set(bearer(funcionario))
+      .expect(400);
+    assert.equal(res.body.codigo, "DADOS_INVALIDOS");
+  });
 });

@@ -70,6 +70,7 @@ const openapi = {
   tags: [
     { name: "Login" },
     { name: "Usuários" },
+    { name: "Ingredientes" },
     { name: "Custos fixos" },
     { name: "Produtos" },
     { name: "Cálculos" },
@@ -194,6 +195,45 @@ const openapi = {
             description: "OK",
             content: { "application/json": { example: { status: "ok" } } },
           },
+        },
+      },
+    },
+    "/api/ingredientes/{id}/historico": {
+      get: {
+        tags: ["Ingredientes"],
+        summary: "Histórico de custo do ingrediente (mais recente primeiro)",
+        description:
+          "Cada vez que o GESTOR muda o custoUnitario pelo PUT /api/ingredientes/{id}, a mudança fica gravada. " +
+          "Datas em UTC (ISO 8601); o front converte para o horário de Brasília.",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+        responses: {
+          200: {
+            description: "Ingrediente e as mudanças de custo",
+            content: {
+              "application/json": {
+                example: {
+                  ingrediente: {
+                    id: 1,
+                    nome: "Farinha de trigo",
+                    unidade: "KG",
+                    custoUnitario: "6.5",
+                  },
+                  itens: [
+                    {
+                      id: 7,
+                      custoAnterior: "5",
+                      custoNovo: "6.5",
+                      alteradoEm: "2026-11-17T23:46:06.177Z",
+                      usuario: { id: 1, nome: "Luiz" },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          404: { description: "Ingrediente não encontrado" },
         },
       },
     },

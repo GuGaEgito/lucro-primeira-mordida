@@ -49,6 +49,41 @@ ingredientesRotas.get("/:id", async (req, res, next) => {
   }
 });
 
+// GET /api/ingredientes/:id/historico — mudanças de custo do ingrediente, da mais recente para a mais antiga (RF10)
+// Qualquer usuário logado pode consultar. Cada item traz quem fez a mudança.
+ingredientesRotas.get("/:id/historico", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ codigo: "DADOS_INVALIDOS", erro: "ID inválido" });
+    }
+
+    const ingrediente = await prisma.ingrediente.findUnique({
+      where: { id },
+      select: { id: true, nome: true, unidade: true, custoUnitario: true },
+    });
+    if (!ingrediente) {
+      return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Ingrediente não encontrado" });
+    }
+
+    const itens = await prisma.historicoCustoInsumo.findMany({
+      where: { insumoId: id },
+      orderBy: [{ alteradoEm: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        custoAnterior: true,
+        custoNovo: true,
+        alteradoEm: true,
+        usuario: { select: { id: true, nome: true } },
+      },
+    });
+
+    res.json({ ingrediente, itens });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/ingredientes — cria um ingrediente
 ingredientesRotas.post("/", exigirCargo("GESTOR"), async (req, res, next) => {
   try {
