@@ -153,3 +153,41 @@ A tabela `custo_fixo` existia, mas não havia rota para cadastrá-la (RF12/RF13)
 #### 4. Documentação e testes
 * `/api/docs` com as rotas novas e o campo `situacao`.
 * 11 testes novos (45 no total). As rotas também foram testadas com um Postgres 16 de verdade (migrations aplicadas, cadastro, conflito, 404, cálculo da coxinha).
+
+---
+
+## [17/11/2026] — Histórico de custo (RF10) e correção das datas 3h adiantadas
+
+### Contexto
+O `PUT /api/ingredientes/:id` já gravava cada troca de custo em `historico_custo_insumo`, mas não havia rota para consultar (RF10). E as datas gravadas pelo back (`atualizado_em`, `criado_em`, `alterado_em`) saíam 3h adiantadas no banco: uma mudança feita às 20:32 aparecia como 23:32 no `psql`.
+
+---
+
+### O que foi feito
+
+#### 1. Causa do fuso
+* O `@prisma/adapter-pg` (7.10) manda as datas em UTC, mas sem o `+00` no final (ex.: `2026-11-17 23:46:06`). Ao ler, ele troca o fuso que o banco devolve por `+00`.
+* O nosso container do Postgres roda em `America/Sao_Paulo` (`db/dockerfile`). Então o banco entendia `23:46` como hora de Brasília e gravava 3h a mais. Pela API parecia certo (o erro se desfazia na leitura), mas o valor no banco estava errado, e qualquer data gerada pelo próprio banco (`now()`, `DEFAULT`) aparecia 3h atrasada na API.
+
+#### 2. Correção (`src/shared/prisma.js`)
+* A conexão do back abre a sessão do Postgres em UTC (`options: "-c TimeZone=UTC"`). Assim a hora gravada é a certa. O fuso do container não mudou: no `psql` as datas continuam aparecendo no horário de Brasília.
+* A API devolve as datas em UTC (ISO 8601, com `Z`). O front converte para o horário local.
+
+> **Dados antigos:** o que foi gravado pelo back antes desta correção continua 3h adiantado. Se quiser acertar o banco de desenvolvimento, rode uma vez (só nos registros gravados antes de hoje):
+> ```sql
+> UPDATE historico_custo_insumo SET alterado_em = alterado_em - interval '3 hours' WHERE alterado_em < '2026-11-17';
+> UPDATE ingredientes  SET atualizado_em = atualizado_em - interval '3 hours' WHERE atualizado_em < '2026-11-17';
+> UPDATE produtos      SET atualizado_em = atualizado_em - interval '3 hours' WHERE atualizado_em < '2026-11-17';
+> UPDATE custo_fixo    SET atualizado_em = atualizado_em - interval '3 hours' WHERE atualizado_em < '2026-11-17';
+> UPDATE usuario       SET criado_em     = criado_em     - interval '3 hours' WHERE criado_em     < '2026-11-17';
+> ```
+
+#### 3. Rota do histórico (`GET /api/ingredientes/:id/historico`)
+* Qualquer usuário logado pode consultar.
+* Devolve `{ ingrediente, itens }`: cada item tem `custoAnterior`, `custoNovo`, `alteradoEm` e o `usuario` (`id` e `nome`) que fez a mudança, do mais recente para o mais antigo.
+* ID inválido → `400 DADOS_INVALIDOS`; ingrediente que não existe → `404 NAO_ENCONTRADO`.
+
+#### 4. Documentação e testes
+* `/api/docs` com a rota nova (grupo "Ingredientes").
+* `tests/banco.test.js`: testes com Postgres de verdade (data gravada igual ao `now()` do banco, histórico em ordem, 404). Só rodam com `TEST_DATABASE_URL`; sem ela ficam pulados. Rodados com um Postgres 16 em `America/Sao_Paulo`: sem a correção o teste da data falha (diferença de 3h), com ela passa.
+* 46 testes sem banco, 49 com banco.

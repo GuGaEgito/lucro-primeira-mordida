@@ -55,6 +55,7 @@ describe("API", () => {
     assert.ok(docs.body.paths["/api/calculos/ficha-tecnica"]);
     assert.ok(docs.body.paths["/api/custos-fixos"]);
     assert.ok(docs.body.paths["/api/produtos/{id}/precificacao"]);
+    assert.ok(docs.body.paths["/api/ingredientes/{id}/historico"]);
   });
 
   it("libera CORS para o front", async () => {
