@@ -26,6 +26,34 @@ function objetoDecimais(campos) {
 
 const ref = (nome) => ({ $ref: `#/components/schemas/${nome}` });
 
+const idNoCaminho = { name: "id", in: "path", required: true, schema: { type: "integer" } };
+
+const ingredienteExemplo = {
+  id: 1,
+  nome: "Farinha de trigo",
+  unidade: "KG",
+  custoUnitario: "5",
+  atualizadoEm: "2026-11-17T23:46:06.177Z",
+};
+const produtoExemplo = {
+  id: 1,
+  nome: "Coxinha",
+  rendimento: "40",
+  precoVenda: "5",
+  ativo: true,
+  atualizadoEm: "2026-11-17T23:46:06.177Z",
+  ingredientes: [
+    {
+      id: 1,
+      produtoId: 1,
+      ingredienteId: 1,
+      quantidade: "500",
+      unidadeReceita: "G",
+      ingrediente: { id: 1, nome: "Farinha de trigo", unidade: "KG", custoUnitario: "5" },
+    },
+  ],
+};
+
 const fichaExemplo = {
   rendimento: 40,
   itens: [
@@ -114,6 +142,19 @@ const openapi = {
               },
             },
           },
+          429: {
+            description:
+              "Muitas tentativas erradas: depois de 5 erros seguidos no mesmo minuto, o login fica bloqueado para aquele IP até o minuto acabar. Logins certos não contam.",
+            content: {
+              "application/json": {
+                schema: ref("Erro"),
+                example: {
+                  codigo: "MUITAS_TENTATIVAS",
+                  erro: "Muitas tentativas de login. Espere 1 minuto(s) e tente de novo",
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -194,6 +235,93 @@ const openapi = {
           200: {
             description: "OK",
             content: { "application/json": { example: { status: "ok" } } },
+          },
+        },
+      },
+    },
+    "/api/ingredientes": {
+      get: {
+        tags: ["Ingredientes"],
+        summary: "Lista os ingredientes (em ordem de nome)",
+        responses: {
+          200: {
+            description: "Lista de ingredientes",
+            content: {
+              "application/json": {
+                schema: { type: "array", items: ref("Ingrediente") },
+                example: [ingredienteExemplo],
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+        },
+      },
+      post: {
+        tags: ["Ingredientes"],
+        summary: "Cadastra um ingrediente (só GESTOR)",
+        requestBody: corpo(ref("IngredienteEntrada"), {
+          nome: "Farinha de trigo",
+          unidade: "KG",
+          custoUnitario: 5,
+        }),
+        responses: {
+          201: {
+            description: "Ingrediente criado",
+            content: { "application/json": { schema: ref("Ingrediente") } },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          409: { description: "Já existe um ingrediente com esse nome" },
+        },
+      },
+    },
+    "/api/ingredientes/{id}": {
+      parameters: [idNoCaminho],
+      get: {
+        tags: ["Ingredientes"],
+        summary: "Busca um ingrediente",
+        responses: {
+          200: {
+            description: "Ingrediente",
+            content: {
+              "application/json": { schema: ref("Ingrediente"), example: ingredienteExemplo },
+            },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          404: { description: "Ingrediente não encontrado" },
+        },
+      },
+      put: {
+        tags: ["Ingredientes"],
+        summary: "Altera nome, unidade e/ou custo (só GESTOR)",
+        description:
+          "Envie só os campos que mudaram. Se o custoUnitario mudar, a mudança fica gravada no histórico (GET /api/ingredientes/{id}/historico) com o usuário logado.",
+        requestBody: corpo(ref("IngredienteEntrada"), { custoUnitario: 6.5 }),
+        responses: {
+          200: {
+            description: "Ingrediente atualizado",
+            content: { "application/json": { schema: ref("Ingrediente") } },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          404: { description: "Ingrediente não encontrado" },
+          409: { description: "Já existe um ingrediente com esse nome" },
+        },
+      },
+      delete: {
+        tags: ["Ingredientes"],
+        summary: "Remove um ingrediente (só GESTOR)",
+        responses: {
+          204: { description: "Removido" },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          404: { description: "Ingrediente não encontrado" },
+          409: {
+            description: "Ingrediente em uso (está numa receita ou tem histórico de custo)",
           },
         },
       },
@@ -301,6 +429,134 @@ const openapi = {
           401: { $ref: "#/components/responses/NaoAutenticado" },
           403: { $ref: "#/components/responses/SemPermissao" },
           404: { description: "Custo fixo não encontrado" },
+        },
+      },
+    },
+    "/api/produtos": {
+      get: {
+        tags: ["Produtos"],
+        summary: "Lista os produtos com a receita (só os ativos, a não ser com ?todos=true)",
+        parameters: [
+          {
+            name: "todos",
+            in: "query",
+            required: false,
+            schema: { type: "string", enum: ["true"] },
+            description: "Use true para incluir os produtos desativados",
+          },
+        ],
+        responses: {
+          200: {
+            description: "Lista de produtos",
+            content: {
+              "application/json": {
+                schema: { type: "array", items: ref("Produto") },
+                example: [produtoExemplo],
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+        },
+      },
+      post: {
+        tags: ["Produtos"],
+        summary: "Cadastra um produto com a receita (só GESTOR)",
+        requestBody: corpo(ref("ProdutoEntrada"), {
+          nome: "Coxinha",
+          rendimento: 40,
+          precoVenda: 5,
+          ingredientes: [
+            { ingredienteId: 1, quantidade: 500, unidadeReceita: "G" },
+            { ingredienteId: 2, quantidade: 800, unidadeReceita: "G" },
+          ],
+        }),
+        responses: {
+          201: {
+            description: "Produto criado",
+            content: { "application/json": { schema: ref("Produto") } },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          404: { description: "Um ou mais ingredientes informados não existem" },
+          409: { description: "O mesmo ingrediente aparece mais de uma vez na receita" },
+        },
+      },
+    },
+    "/api/produtos/{id}": {
+      parameters: [idNoCaminho],
+      get: {
+        tags: ["Produtos"],
+        summary: "Busca um produto com a receita",
+        responses: {
+          200: {
+            description: "Produto",
+            content: { "application/json": { schema: ref("Produto"), example: produtoExemplo } },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          404: { description: "Produto não encontrado" },
+        },
+      },
+      put: {
+        tags: ["Produtos"],
+        summary: "Altera o produto e/ou troca a receita (só GESTOR)",
+        description:
+          "Envie só os campos que mudaram. Se enviar ingredientes, a receita inteira é substituída pela lista enviada (lista vazia apaga a receita). precoVenda: null apaga o preço.",
+        requestBody: corpo(ref("ProdutoEntrada"), { precoVenda: 5.5 }),
+        responses: {
+          200: {
+            description: "Produto atualizado",
+            content: { "application/json": { schema: ref("Produto") } },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          404: { description: "Produto ou ingrediente não encontrado" },
+          409: { description: "O mesmo ingrediente aparece mais de uma vez na receita" },
+        },
+      },
+      delete: {
+        tags: ["Produtos"],
+        summary: "Apaga o produto e a receita de vez (só GESTOR)",
+        description:
+          "Não dá para desfazer. Para tirar do cardápio sem perder a ficha técnica, use PATCH /api/produtos/{id}/ativo.",
+        responses: {
+          204: { description: "Removido" },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          404: { description: "Produto não encontrado" },
+        },
+      },
+    },
+    "/api/produtos/{id}/ativo": {
+      patch: {
+        tags: ["Produtos"],
+        summary: "Ativa ou desativa um produto (só GESTOR)",
+        parameters: [idNoCaminho],
+        requestBody: corpo(
+          { type: "object", required: ["ativo"], properties: { ativo: { type: "boolean" } } },
+          { ativo: false },
+        ),
+        responses: {
+          200: {
+            description: "Produto atualizado",
+            content: {
+              "application/json": {
+                example: {
+                  id: 1,
+                  nome: "Coxinha",
+                  ativo: false,
+                  atualizadoEm: "2026-11-17T23:46:06.177Z",
+                },
+              },
+            },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          403: { $ref: "#/components/responses/SemPermissao" },
+          404: { description: "Produto não encontrado" },
         },
       },
     },
@@ -574,6 +830,81 @@ const openapi = {
       bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
     },
     schemas: {
+      Ingrediente: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          nome: { type: "string" },
+          unidade,
+          custoUnitario: { ...decimal, description: "Custo de 1 unidade (ex.: R$ por KG)" },
+          atualizadoEm: { type: "string", format: "date-time", description: "Em UTC" },
+        },
+      },
+      IngredienteEntrada: {
+        type: "object",
+        required: ["nome", "unidade", "custoUnitario"],
+        description: "No PUT, todos os campos são opcionais",
+        properties: {
+          nome: { type: "string", maxLength: 50 },
+          unidade,
+          custoUnitario: { type: "number", minimum: 0, description: "Custo de 1 unidade" },
+        },
+      },
+      ItemReceita: {
+        type: "object",
+        required: ["ingredienteId", "quantidade", "unidadeReceita"],
+        properties: {
+          ingredienteId: { type: "integer" },
+          quantidade: { type: "number", exclusiveMinimum: true, minimum: 0 },
+          unidadeReceita: { ...unidade, description: "Unidade usada na receita (ex.: G)" },
+        },
+      },
+      Produto: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          nome: { type: "string" },
+          rendimento: { ...decimal, description: "Quantos salgados a receita rende" },
+          precoVenda: { ...decimal, nullable: true, description: "Preço de venda aprovado" },
+          ativo: { type: "boolean" },
+          atualizadoEm: { type: "string", format: "date-time", description: "Em UTC" },
+          ingredientes: {
+            type: "array",
+            description: "Itens da receita, cada um com os dados do ingrediente",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "integer" },
+                produtoId: { type: "integer" },
+                ingredienteId: { type: "integer" },
+                quantidade: decimal,
+                unidadeReceita: unidade,
+                ingrediente: {
+                  type: "object",
+                  properties: {
+                    id: { type: "integer" },
+                    nome: { type: "string" },
+                    unidade,
+                    custoUnitario: decimal,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      ProdutoEntrada: {
+        type: "object",
+        required: ["nome"],
+        description: "No PUT, todos os campos são opcionais",
+        properties: {
+          nome: { type: "string", maxLength: 50 },
+          rendimento: { type: "number", exclusiveMinimum: true, minimum: 0, default: 1 },
+          precoVenda: { type: "number", minimum: 0, nullable: true },
+          ativo: { type: "boolean", default: true },
+          ingredientes: { type: "array", items: ref("ItemReceita") },
+        },
+      },
       CustoFixo: {
         type: "object",
         properties: {
@@ -680,6 +1011,12 @@ const openapi = {
               "ERRO_CALCULO",
               "ROTA_NAO_ENCONTRADA",
               "ERRO_INTERNO",
+              "NAO_AUTENTICADO",
+              "CREDENCIAIS_INVALIDAS",
+              "SEM_PERMISSAO",
+              "NAO_ENCONTRADO",
+              "CONFLITO",
+              "MUITAS_TENTATIVAS",
             ],
             description: "Código fixo para o front tratar o erro",
           },
@@ -697,7 +1034,8 @@ const openapi = {
     },
     responses: {
       NaoAutenticado: {
-        description: "Sem token, ou token inválido/expirado: faça login de novo",
+        description:
+          "Sem token, token inválido/expirado, ou usuário desativado pelo gestor depois do login: faça login de novo",
         content: {
           "application/json": {
             schema: ref("Erro"),

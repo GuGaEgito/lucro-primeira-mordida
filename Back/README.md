@@ -419,14 +419,15 @@ Exemplo: uma rota que calcula o CMV de um salgado.
 - O login é pelo `nome` (único no banco) e senha. `POST /api/auth/login` confere a senha com bcrypt e devolve um token JWT assinado com `JWT_SECRET`, que leva só o id (`sub`) e o `cargo` e vence em `JWT_EXPIRES_IN` (padrão `8h`).
 - `src/shared/autenticacao.js` tem os middlewares: `autenticar` (exige `Authorization: Bearer <token>` e preenche `req.usuario = { id, cargo }`) e `exigirCargo("GESTOR")`.
 - No `app.js`, só `/health`, `/api/docs`, `/api/openapi.json` e `/api/auth/login` são públicos. FUNCIONARIO lê ingredientes e produtos e usa os cálculos; criar, alterar e apagar é só do GESTOR.
-- Erros: `401 NAO_AUTENTICADO` (sem token, token alterado ou vencido), `401 CREDENCIAIS_INVALIDAS` (nome ou senha errados, ou usuário desativado), `403 SEM_PERMISSAO`.
+- Erros: `401 NAO_AUTENTICADO` (sem token, token alterado ou vencido, ou usuário desativado), `401 CREDENCIAIS_INVALIDAS` (nome ou senha errados, ou usuário desativado), `403 SEM_PERMISSAO`.
 - Ao mudar o `custoUnitario` de um ingrediente, o `PUT /api/ingredientes/:id` grava a mudança em `historico_custo_insumo` com o usuário logado. `GET /api/ingredientes/:id/historico` lista essas mudanças (qualquer usuário logado).
 - Primeiro gestor: `npm run criar-gestor -- <nome> <senha>`.
-- Limite conhecido: desativar um usuário bloqueia novos logins, mas o token que ele já tem continua valendo até vencer.
+- A cada requisição o `autenticar` busca o usuário do token no banco: se o gestor desativou (ou apagou) o usuário, o token dele para de valer na hora (`401 NAO_AUTENTICADO`), e o cargo usado é sempre o do banco. Os testes sem banco trocam essa consulta por usuários falsos (`tests/usuarios-falsos.js`).
+- Limite de tentativas (`src/shared/limite-login.js`, com `express-rate-limit`): 5 logins errados por IP a cada 1 minuto. A 6ª tentativa recebe `429 MUITAS_TENTATIVAS` até o minuto acabar. Logins certos não contam. Dá para mudar com `LOGIN_MAX_TENTATIVAS` e `LOGIN_JANELA_MINUTOS` no `.env`.
 
 ---
 
 ## 13. O que ainda falta
 
-- Rota de cadastro de custos fixos.
-- Diagnóstico de "rentável ou não" para cada salgado.
+- O front-end (feito por outra pessoa). Quando a pasta `frontend/` existir, é só descomentar o serviço no `docker-compose.yml`.
+- Itens menores do checklist OWASP: impedir que o último gestor seja desativado e registrar logins falhos.

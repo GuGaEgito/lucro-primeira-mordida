@@ -191,3 +191,42 @@ O `PUT /api/ingredientes/:id` já gravava cada troca de custo em `historico_cust
 * `/api/docs` com a rota nova (grupo "Ingredientes").
 * `tests/banco.test.js`: testes com Postgres de verdade (data gravada igual ao `now()` do banco, histórico em ordem, 404). Só rodam com `TEST_DATABASE_URL`; sem ela ficam pulados. Rodados com um Postgres 16 em `America/Sao_Paulo`: sem a correção o teste da data falha (diferença de 3h), com ela passa.
 * 46 testes sem banco, 49 com banco.
+
+---
+
+## [17/11/2026] — Docker com o back, proteções do login (OWASP) e documentação completa
+
+### Contexto
+Itens que sobraram da avaliação de 17/11 e do checklist OWASP (`1-checklist-owasp.md`): o `docker-compose.yml` procurava `Back/Dockerfile` e uma pasta `frontend/` que não existem, então só o banco subia; o login não tinha limite de tentativas (2.7); o token de um usuário desativado valia até vencer (2.9); o `npm audit` apontava 9 vulnerabilidades (A03); e o `/api/docs` não mostrava as rotas de ingredientes e produtos.
+
+---
+
+### O que foi feito
+
+#### 1. Docker sobe o banco e a API
+* `Back/Dockerfile` em etapas: a etapa `build` instala tudo e gera o Prisma Client; a etapa `migracoes` roda `prisma migrate deploy`; a imagem final leva só as dependências de produção, roda como o usuário `node` (não root) e tem healthcheck no `/health`.
+* `Back/.dockerignore`: `node_modules`, `.env`, testes e documentos ficam fora da imagem.
+* `docker-compose.yml`: serviço `migracoes` (aplica as migrations e para) e `backend`, que só sobe depois das migrations, na porta `127.0.0.1:3000` (`API_PORT`). O `JWT_SECRET` é obrigatório no `.env` da raiz. O serviço do front ficou comentado até a pasta `frontend/` existir.
+* Comando: `docker compose up -d --build db migracoes backend`. Primeiro gestor: `docker compose exec backend npm run criar-gestor -- Nome Senha`.
+
+#### 2. Limite de tentativas de login (OWASP 2.7 / API2 / A07)
+* `src/shared/limite-login.js` com `express-rate-limit`: 5 logins errados por IP a cada 1 minuto. A 6ª tentativa recebe `429 MUITAS_TENTATIVAS`. Logins certos não contam.
+* Configurável por `LOGIN_MAX_TENTATIVAS` e `LOGIN_JANELA_MINUTOS`.
+
+#### 3. Token de usuário desativado para de valer (OWASP 2.9)
+* O `autenticar` agora busca o usuário do token no banco a cada requisição. Desativado ou apagado → `401 NAO_AUTENTICADO` na hora.
+* O cargo usado é o do banco, não o que está no token: promover ou rebaixar alguém também vale na hora.
+* Custo: uma consulta simples por requisição (busca pela chave primária).
+
+#### 4. Dependências (OWASP A03)
+* `npm audit fix` e Express atualizado para `4.22.3` (o `qs` antigo só saía com ele). `npm audit`: **0 vulnerabilidades**.
+
+#### 5. Documentação (`/api/docs`)
+* Rotas que faltavam: `GET/POST /api/ingredientes`, `GET/PUT/DELETE /api/ingredientes/{id}`, `GET/POST /api/produtos` (com `?todos=true`), `GET/PUT/DELETE /api/produtos/{id}` e `PATCH /api/produtos/{id}/ativo`, com exemplos.
+* Resposta `429` no login e os códigos de erro que faltavam na lista.
+
+#### 6. Testes
+* Novos: token de usuário desativado e removido, cargo vindo do banco, token sem id válido, bloqueio na 6ª tentativa de login, e um teste que falha se alguma rota de login, usuários, ingredientes, produtos ou custos fixos ficar fora do `/api/docs`.
+* Com banco (`TEST_DATABASE_URL`): desativar e reativar o funcionário pela API, e login certo não contando no limite.
+* Os testes sem banco trocam a consulta do usuário por usuários falsos (`tests/usuarios-falsos.js`).
+* 51 testes sem banco, 55 com banco, todos passando. O `docker compose` foi testado de verdade: banco, migrations, API healthy, criação do gestor, login, bloqueio e desativação.

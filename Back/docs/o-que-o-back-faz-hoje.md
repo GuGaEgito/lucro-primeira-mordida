@@ -13,6 +13,7 @@ O back é uma **calculadora pela internet** (o front manda os números em JSON, 
 - Node.js 22+, JavaScript puro (CommonJS), Express 4. Não tem etapa de build.
 - `npm run dev` liga o servidor e reinicia sozinho quando você salva um arquivo. `npm start` liga sem reiniciar. `npm test` roda os testes.
 - Porta padrão 3000 (variável `PORT`).
+- Também sobe pelo Docker: `docker compose up -d --build db migracoes backend` na raiz liga o banco, aplica as migrations e liga a API em `http://localhost:3000` (imagem em `Back/Dockerfile`, roda sem ser root).
 - CORS: a variável `CORS_ORIGIN` diz quais endereços do front podem chamar a API (ex.: `http://localhost:5173`). Se ficar vazia, qualquer site pode chamar (só para desenvolvimento).
 - Aceita corpo JSON de até 100 KB.
 - Ao parar (Ctrl+C ou Docker), termina as requisições em andamento antes de desligar, com limite de 10 segundos.
@@ -84,10 +85,12 @@ Abra `http://localhost:3000/api/docs`, rode `POST /api/auth/login`, copie o `tok
 
 ### Limites conhecidos
 
-- Desativar um usuário bloqueia **novos** logins, mas o token que ele já tem continua valendo até vencer (no máximo 8h). Se for preciso cortar na hora, o `autenticar` pode consultar o banco a cada requisição.
-- Pelo mesmo motivo, uma mudança de cargo só vale a partir do próximo login.
 - Não há rota de logout nem de renovação do token: para "sair", o front apaga o token que guardou.
-- Não há limite de tentativas de login.
+
+### Proteções do login
+
+- Desativar um usuário corta o acesso **na hora**: o token que ele já tinha passa a receber `401 NAO_AUTENTICADO`. Uma mudança de cargo também vale na hora, porque o back confere o usuário no banco a cada requisição.
+- Depois de **5 senhas erradas seguidas** no mesmo minuto, o login daquele computador (IP) fica bloqueado até o minuto acabar e recebe `429 MUITAS_TENTATIVAS`. Logins certos não contam.
 
 ## Rotas de cálculo
 
@@ -280,11 +283,12 @@ O front decide o que fazer olhando o `codigo` e mostra a frase de `erro` para o 
 | `JSON_INVALIDO` | 400 | O corpo enviado não é um JSON válido. |
 | `CORPO_MUITO_GRANDE` | 413 | Corpo maior que 100 KB. |
 | `ERRO_CALCULO` | 422 | Os dados vieram certos, mas a conta não faz sentido: rendimento zero, valor negativo, percentuais somando 100% ou mais, margem negativa no ponto de equilíbrio, conversão de kg para litro. |
-| `NAO_AUTENTICADO` | 401 | Sem token, token alterado ou vencido. O front deve voltar para a tela de login. |
+| `NAO_AUTENTICADO` | 401 | Sem token, token alterado ou vencido, ou usuário desativado pelo gestor. O front deve voltar para a tela de login. |
 | `CREDENCIAIS_INVALIDAS` | 401 | Login com nome ou senha errados, ou usuário desativado (a mesma mensagem para tudo, para não revelar quais nomes existem). |
 | `SEM_PERMISSAO` | 403 | Logado, mas o cargo não pode fazer aquilo (ex.: funcionário tentando criar ingrediente). |
 | `NAO_ENCONTRADO` | 404 | Ingrediente, produto ou usuário com aquele id não existe. |
 | `CONFLITO` | 409 | Nome repetido, ou ingrediente em uso que não pode ser apagado. |
+| `MUITAS_TENTATIVAS` | 429 | 5 logins errados seguidos no mesmo minuto. O front mostra a mensagem e espera 1 minuto. |
 | `ROTA_NAO_ENCONTRADA` | 404 | Endereço que não existe. |
 | `ERRO_INTERNO` | 500 | Qualquer outro problema. O detalhe só aparece no console do servidor. |
 

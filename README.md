@@ -70,6 +70,25 @@ Pronto, o banco está rodando.
 
 ---
 
+### Subir o banco e a API juntos pelo Docker (opção para quem não vai mexer no back)
+
+Para quem só quer usar a API (por exemplo, quem faz o front-end), não precisa instalar o Node nem fazer os passos 5 a 8. Depois dos passos 1 a 3, na raiz:
+```
+docker compose up -d --build db migracoes backend
+```
+O Docker sobe o banco, aplica as migrations (o serviço `migracoes` roda e para sozinho) e liga a API em http://localhost:3000 (documentação em http://localhost:3000/api/docs). Confira com `docker compose ps`: o `backend` deve ficar **healthy** e o `migracoes` aparece como **Exited (0)**, que é o normal.
+
+Crie o primeiro gestor dentro do container:
+```
+docker compose exec backend npm run criar-gestor -- SeuNome SuaSenha
+```
+
+> Depois de um `git pull` com mudanças no back, rode o mesmo `docker compose up -d --build db migracoes backend` para refazer a imagem.
+> Se você já estiver rodando o back com `npm run dev` na porta 3000, pare um dos dois ou troque o `API_PORT` no `.env` da raiz.
+> O serviço do front-end está comentado no `docker-compose.yml` até a pasta `frontend/` existir.
+
+---
+
 ### Comandos do dia a dia
 
 | O que fazer | Comando (na raiz do projeto) |
@@ -78,6 +97,7 @@ Pronto, o banco está rodando.
 | Desligar o banco (mantém os dados) | `docker compose stop` |
 | Ver se está rodando | `docker compose ps` |
 | Ver mensagens de erro do banco | `docker compose logs db` |
+| Ver mensagens de erro da API (se subiu pelo Docker) | `docker compose logs backend` |
 | **Apagar tudo e recomeçar do zero** | `docker compose down -v` e depois repetir os passos 4 e 6 |
 
 > Depois de um `git pull` que traga mudanças no banco (pasta `Back/prisma/migrations`), rode de novo, dentro de `Back`: `npx prisma migrate deploy --config prisma7.config.js`
