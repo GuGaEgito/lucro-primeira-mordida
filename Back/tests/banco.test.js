@@ -1,5 +1,6 @@
 const { describe, it, before, after } = require("node:test");
 const assert = require("node:assert/strict");
+const bcrypt = require("bcryptjs");
 const request = require("supertest");
 
 // Testes com um Postgres de verdade. Só rodam se TEST_DATABASE_URL estiver definida
@@ -96,5 +97,50 @@ describe("Banco de dados", { skip: !URL_TESTE && "defina TEST_DATABASE_URL" }, (
       .set({ Authorization: `Bearer ${gerarToken(funcionario)}` })
       .expect(404);
     assert.equal(res.body.codigo, "NAO_ENCONTRADO");
+  });
+  it("o token do usuário desativado para de valer na hora", async () => {
+    const app = criarApp();
+    const comoGestor = { Authorization: `Bearer ${gerarToken(gestor)}` };
+    const comoFuncionario = { Authorization: `Bearer ${gerarToken(funcionario)}` };
+
+    await request(app).get("/api/produtos").set(comoFuncionario).expect(200);
+    await request(app)
+      .patch(`/api/usuarios/${funcionario.id}/ativo`)
+      .set(comoGestor)
+      .send({ ativo: false })
+      .expect(200);
+    const res = await request(app).get("/api/produtos").set(comoFuncionario).expect(401);
+    assert.equal(res.body.codigo, "NAO_AUTENTICADO");
+
+    // Reativado, o mesmo token volta a funcionar.
+    await request(app)
+      .patch(`/api/usuarios/${funcionario.id}/ativo`)
+      .set(comoGestor)
+      .send({ ativo: true })
+      .expect(200);
+    await request(app).get("/api/produtos").set(comoFuncionario).expect(200);
+  });
+
+  it("login certo não conta no limite; 5 senhas erradas bloqueiam", async () => {
+    const app = criarApp();
+    const nome = `login-teste-${sufixo}`;
+    const usuario = await prisma.usuario.create({
+      data: { nome, cargo: "FUNCIONARIO", senha: await bcrypt.hash("certa123", 4) },
+    });
+    try {
+      for (let i = 0; i < 6; i++) {
+        await request(app).post("/api/auth/login").send({ nome, senha: "certa123" }).expect(200);
+      }
+      for (let i = 0; i < 5; i++) {
+        await request(app).post("/api/auth/login").send({ nome, senha: "errada" }).expect(401);
+      }
+      const res = await request(app)
+        .post("/api/auth/login")
+        .send({ nome, senha: "certa123" })
+        .expect(429);
+      assert.equal(res.body.codigo, "MUITAS_TENTATIVAS");
+    } finally {
+      await prisma.usuario.delete({ where: { id: usuario.id } });
+    }
   });
 });

@@ -19,6 +19,18 @@ services:
       timeout: 5s
       retries: 10
 
+  # ---------- Migrations (cria/atualiza as tabelas e sai) ----------
+  migracoes:
+    build:
+      context: ./Back
+      target: migracoes
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+
   # ---------- Backend (Node.js + Prisma) ----------
   backend:
     build: ./Back
@@ -26,23 +38,28 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migracoes:
+        condition: service_completed_successfully   # só sobe depois das migrations
     environment:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env da raiz}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
-    expose:
-      - "3000"                   # acessível só pela rede interna (via Nginx)
-
-  # ---------- Frontend (React + Nginx) ----------
-  frontend:
-    build: ./frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "127.0.0.1:${API_PORT:-3000}:3000"  # API em http://localhost:3000 (docs em /api/docs)
+
+  # ---------- Frontend ----------
+  # O front é feito por outra pessoa e ainda não está neste repositório.
+  # Quando a pasta frontend/ (com o Dockerfile dela) existir, descomente:
+  # frontend:
+  #   build: ./frontend
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - backend
+  #   ports:
+  #     - "${WEB_PORT:-8080}:80"
 
   # ---------- Backup automático (RNF05) ----------
   backup:

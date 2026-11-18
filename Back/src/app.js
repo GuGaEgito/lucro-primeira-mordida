@@ -10,12 +10,14 @@ const { ingredientesRotas } = require("./routes/ingredientes");
 const { produtosRotas } = require("./routes/produtos");
 const { usuariosRotas } = require("./routes/usuarios");
 const { autenticar, exigirCargo } = require("./shared/autenticacao");
+const { limitarTentativasLogin } = require("./shared/limite-login");
 const { ErroCalculo } = require("./shared/numeros");
 
 // Formato único de erro da API: { codigo, erro, detalhes? }.
 // O front decide o que fazer pelo `codigo`; `erro` é a mensagem para mostrar ao usuário.
 // Códigos: DADOS_INVALIDOS, JSON_INVALIDO, CORPO_MUITO_GRANDE, ERRO_CALCULO, ROTA_NAO_ENCONTRADA, ERRO_INTERNO,
-// NAO_AUTENTICADO (401), CREDENCIAIS_INVALIDAS (401), SEM_PERMISSAO (403), NAO_ENCONTRADO, CONFLITO.
+// NAO_AUTENTICADO (401), CREDENCIAIS_INVALIDAS (401), SEM_PERMISSAO (403), NAO_ENCONTRADO, CONFLITO,
+// MUITAS_TENTATIVAS (429).
 function responderErro(res, status, codigo, erro, detalhes) {
   res.status(status).json({ codigo, erro, ...(detalhes && { detalhes }) });
 }
@@ -79,6 +81,8 @@ function criarApp() {
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openapi));
 
   // Só o login é público. As demais rotas exigem token; usuários só o GESTOR acessa.
+  // O limite fica aqui (e não no arquivo da rota) para cada app ter a sua contagem.
+  app.use("/api/auth/login", limitarTentativasLogin());
   app.use("/api/auth", authRotas);
   app.use("/api/calculos", autenticar, calculosRotas);
   app.use("/api/custos-fixos", autenticar, custosFixosRotas);

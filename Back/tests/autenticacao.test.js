@@ -6,8 +6,11 @@ const request = require("supertest");
 process.env.JWT_SECRET = "segredo-dos-testes";
 const { criarApp } = require("../src/app");
 const { gerarToken } = require("../src/shared/autenticacao");
+const { usarUsuariosFalsos } = require("./usuarios-falsos");
 
-// Estes testes não precisam de banco: o token é barrado (ou o cargo é recusado) antes de qualquer consulta.
+// Estes testes não precisam de banco: a consulta do usuário do token é trocada por uma falsa
+// e o resto é barrado (token, cargo ou validação) antes de qualquer outra consulta.
+usarUsuariosFalsos();
 const app = criarApp();
 const bearer = (token) => ({ Authorization: `Bearer ${token}` });
 const funcionario = gerarToken({ id: 2, cargo: "FUNCIONARIO" });
@@ -86,5 +89,39 @@ describe("Autenticação", () => {
       .set(bearer(funcionario))
       .expect(400);
     assert.equal(res.body.codigo, "DADOS_INVALIDOS");
+  });
+  it("barra o token de um usuário desativado ou removido, mesmo dentro da validade", async () => {
+    for (const id of [3, 99]) {
+      const token = gerarToken({ id, cargo: "GESTOR" });
+      const res = await request(app).get("/api/produtos").set(bearer(token)).expect(401);
+      assert.equal(res.body.codigo, "NAO_AUTENTICADO");
+    }
+  });
+
+  it("usa o cargo do banco, não o do token", async () => {
+    // Token antigo dizendo GESTOR, mas no banco o usuário 2 é FUNCIONARIO.
+    const tokenAntigo = gerarToken({ id: 2, cargo: "GESTOR" });
+    const res = await request(app).get("/api/usuarios").set(bearer(tokenAntigo)).expect(403);
+    assert.equal(res.body.codigo, "SEM_PERMISSAO");
+  });
+
+  it("recusa token sem um id de usuário válido", async () => {
+    const semId = jwt.sign({ cargo: "GESTOR" }, process.env.JWT_SECRET, { subject: "abc" });
+    const res = await request(app).get("/api/produtos").set(bearer(semId)).expect(401);
+    assert.equal(res.body.codigo, "NAO_AUTENTICADO");
+  });
+
+  it("bloqueia o login depois de 5 tentativas erradas seguidas", async () => {
+    // App novo para a contagem começar do zero. O corpo inválido (400) conta como erro
+    // e não precisa de banco.
+    const appNovo = criarApp();
+    for (let i = 0; i < 5; i++) {
+      await request(appNovo).post("/api/auth/login").send({ nome: "" }).expect(400);
+    }
+    const res = await request(appNovo).post("/api/auth/login").send({ nome: "" }).expect(429);
+    assert.equal(res.body.codigo, "MUITAS_TENTATIVAS");
+    assert.ok(res.headers["ratelimit"], "envia o cabeçalho RateLimit");
+    // Outras rotas não entram na conta.
+    await request(appNovo).get("/health").expect(200);
   });
 });

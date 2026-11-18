@@ -1,0 +1,11 @@
+# Fica fora da imagem: dependências locais (são instaladas dentro do container),
+# segredos, client gerado na máquina, testes e configurações de editor/IA.
+node_modules
+.env
+src/generated
+tests
+docs
+.claude
+.agents
+.windsurf
+*.md

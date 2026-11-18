@@ -4,12 +4,14 @@ const request = require("supertest");
 process.env.JWT_SECRET = "segredo-dos-testes";
 const { criarApp } = require("../src/app");
 const { gerarToken } = require("../src/shared/autenticacao");
+const { usarUsuariosFalsos } = require("./usuarios-falsos");
 
+usarUsuariosFalsos();
 const app = criarApp();
 // As rotas de cálculo exigem login: todas as requisições vão com o token de um funcionário.
 const api = request
   .agent(app)
-  .set("Authorization", `Bearer ${gerarToken({ id: 1, cargo: "FUNCIONARIO" })}`);
+  .set("Authorization", `Bearer ${gerarToken({ id: 2, cargo: "FUNCIONARIO" })}`);
 
 const ficha = {
   rendimento: 40,
@@ -56,6 +58,29 @@ describe("API", () => {
     assert.ok(docs.body.paths["/api/custos-fixos"]);
     assert.ok(docs.body.paths["/api/produtos/{id}/precificacao"]);
     assert.ok(docs.body.paths["/api/ingredientes/{id}/historico"]);
+  });
+
+  it("a documentação tem todas as rotas de login, usuários, ingredientes, produtos e custos fixos", () => {
+    const { openapi } = require("../src/docs/openapi");
+    const roteadores = {
+      "/api/auth": require("../src/routes/auth").authRotas,
+      "/api/usuarios": require("../src/routes/usuarios").usuariosRotas,
+      "/api/ingredientes": require("../src/routes/ingredientes").ingredientesRotas,
+      "/api/produtos": require("../src/routes/produtos").produtosRotas,
+      "/api/custos-fixos": require("../src/routes/custos-fixos").custosFixosRotas,
+    };
+    const faltando = [];
+    for (const [prefixo, roteador] of Object.entries(roteadores)) {
+      for (const { route } of roteador.stack.filter((camada) => camada.route)) {
+        // "/:id/ativo" no Express vira "/{id}/ativo" no OpenAPI; "/" vira o próprio prefixo.
+        const caminho = (prefixo + route.path.replace(/:(\w+)/g, "{$1}")).replace(/\/$/, "");
+        for (const metodo of Object.keys(route.methods)) {
+          if (!openapi.paths[caminho]?.[metodo])
+            faltando.push(`${metodo.toUpperCase()} ${caminho}`);
+        }
+      }
+    }
+    assert.deepEqual(faltando, []);
   });
 
   it("libera CORS para o front", async () => {
