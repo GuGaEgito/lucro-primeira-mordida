@@ -51,15 +51,14 @@ services:
       - "127.0.0.1:${API_PORT:-3000}:3000"  # API em http://localhost:3000 (docs em /api/docs)
 
   # ---------- Frontend ----------
-  # O front é feito por outra pessoa e ainda não está neste repositório.
-  # Quando a pasta frontend/ (com o Dockerfile dela) existir, descomente:
-  # frontend:
-  #   build: ./frontend
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - backend
-  #   ports:
-  #     - "${WEB_PORT:-8080}:80"
+  # React + Vite, servido pelo nginx. As chamadas /api vão para o serviço backend.
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"   # site em http://localhost:8080
 
   # ---------- Backup automático (RNF05) ----------
   backup:
