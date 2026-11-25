@@ -599,6 +599,58 @@ const openapi = {
         },
       },
     },
+    "/api/produtos/{id}/verificacao-insumos": {
+      get: {
+        tags: ["Produtos"],
+        summary: "Compara o custo dos insumos com os preços online dos mercados",
+        description:
+          "Busca na hora no Savegnago e no Atacadão e não grava nada. Preços online de referência, por KG ou L. situacao: PAGANDO_MAIS, PAGANDO_MENOS ou IGUAL (até 2%). Sem opções, motivo explica: VENDIDO_POR_UNIDADE, SEM_CUSTO, NAO_ENCONTRADO ou FALHA_NA_BUSCA.",
+        parameters: [idNoCaminho],
+        responses: {
+          200: {
+            description: "Comparação por insumo; opcoes vem da mais barata para a mais cara",
+            content: {
+              "application/json": {
+                example: {
+                  produto: { id: 1, nome: "Coxinha" },
+                  consultadoEm: "2026-11-24T23:00:00.000Z",
+                  mercados: [{ id: "atacadao", nome: "Atacadão", erro: null }],
+                  insumos: [
+                    {
+                      ingredienteId: 1,
+                      nome: "Farinha de trigo",
+                      unidadeBase: "KG",
+                      precoPago: "5",
+                      motivo: null,
+                      opcoes: [
+                        {
+                          mercadoId: "atacadao",
+                          mercado: "Atacadão",
+                          skuId: "1",
+                          produto: "Farinha de trigo 1kg",
+                          link: null,
+                          preco: "4",
+                          precoBase: "4",
+                          situacao: "PAGANDO_MAIS",
+                          diferenca: "1",
+                          diferencaPercentual: "25",
+                          diferencaReceita: "0.5",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          400: { $ref: "#/components/responses/DadosInvalidos" },
+          401: { $ref: "#/components/responses/NaoAutenticado" },
+          404: { description: "Produto não encontrado" },
+          422: { description: "Produto sem receita" },
+          429: { description: "Muitas verificações em um minuto" },
+        },
+      },
+    },
     "/api/calculos/ficha-tecnica": {
       post: {
         tags: ["Cálculos"],

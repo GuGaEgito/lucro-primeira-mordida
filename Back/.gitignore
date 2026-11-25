@@ -4,3 +4,6 @@ dist
 .env
 
 /src/generated/prisma
+
+# Coleta provisoria de precos
+/dados

@@ -1861,3 +1861,24 @@ table.tabela {
 select.entrada:disabled {
   background-image: none;
 }
+
+/* ---------- Verificação de insumos ---------- */
+.verificacao-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.verificacao-form .campo {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+.nome-celula select.entrada {
+  margin-top: 8px;
+  max-width: 340px;
+}
+.verificacao-nota {
+  margin-top: 16px;
+  max-width: 75ch;
+}

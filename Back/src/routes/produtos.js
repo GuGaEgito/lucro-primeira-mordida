@@ -1,9 +1,11 @@
 const { Router } = require("express");
+const { rateLimit } = require("express-rate-limit");
 const { z } = require("zod");
 const { prisma } = require("../shared/prisma");
 const { exigirCargo } = require("../shared/autenticacao");
 const { numero } = require("../shared/validacao");
 const { precificarProduto } = require("../modules/precificacao/precificacao-produto");
+const { verificarInsumos } = require("../modules/mercados/verificacao");
 
 const produtosRotas = Router();
 
@@ -239,6 +241,42 @@ produtosRotas.post("/:id/precificacao", async (req, res, next) => {
     }
 
     res.json(precificarProduto(produto, custosFixos, parametros));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Cada verificação faz várias buscas nos sites: o limite evita sobrecarregar os mercados.
+const limitarVerificacoes = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 6,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  handler: (_req, res) =>
+    res.status(429).json({
+      codigo: "MUITAS_TENTATIVAS",
+      erro: "Muitas verificações seguidas. Espere um minuto e tente de novo.",
+    }),
+});
+
+// GET /api/produtos/:id/verificacao-insumos — compara o custo de cada insumo da receita com os
+// preços online dos mercados. Busca na hora e não grava nada.
+produtosRotas.get("/:id/verificacao-insumos", limitarVerificacoes, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ codigo: "DADOS_INVALIDOS", erro: "ID inválido" });
+    }
+
+    const produto = await prisma.produto.findUnique({
+      where: { id },
+      include: includeIngredientes,
+    });
+    if (!produto) {
+      return res.status(404).json({ codigo: "NAO_ENCONTRADO", erro: "Produto não encontrado" });
+    }
+
+    res.json(await verificarInsumos(produto));
   } catch (err) {
     next(err);
   }

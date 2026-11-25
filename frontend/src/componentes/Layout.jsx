@@ -112,6 +112,9 @@ function Cabecalho() {
           <NavLink to="/ingredientes" className={({ isActive }) => (isActive ? "ativo" : "")}>
             Ingredientes
           </NavLink>
+          <NavLink to="/verificacao-insumos" className={({ isActive }) => (isActive ? "ativo" : "")}>
+            Verificação de insumos
+          </NavLink>
           <NavLink to="/custos-fixos" className={({ isActive }) => (isActive ? "ativo" : "")}>
             Custos fixos
           </NavLink>

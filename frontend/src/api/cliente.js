@@ -107,6 +107,8 @@ export const rotas = {
   apagarProduto: (id) => api.del(`/api/produtos/${id}`),
   precificar: (id, parametros) => api.post(`/api/produtos/${id}/precificacao`, parametros),
 
+  verificarInsumos: (id) => api.get(`/api/produtos/${id}/verificacao-insumos`),
+
   custosFixos: () => api.get("/api/custos-fixos"),
   criarCustoFixo: (d) => api.post("/api/custos-fixos", d),
   alterarCustoFixo: (id, d) => api.put(`/api/custos-fixos/${id}`, d),

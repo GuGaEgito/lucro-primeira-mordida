@@ -6,6 +6,7 @@ import { Login } from "./paginas/Login";
 import { Painel } from "./paginas/Painel";
 import { Produtos } from "./paginas/Produtos";
 import { FichaProduto } from "./paginas/FichaProduto";
+import { VerificacaoInsumos } from "./paginas/VerificacaoInsumos";
 import { Ingredientes } from "./paginas/Ingredientes";
 import { CustosFixos } from "./paginas/CustosFixos";
 import { Calculos } from "./paginas/Calculos";
@@ -37,6 +38,7 @@ export function App() {
         <Route path="produtos/novo" element={<FichaProduto novo />} />
         <Route path="produtos/:id" element={<FichaProduto />} />
         <Route path="ingredientes" element={<Ingredientes />} />
+        <Route path="verificacao-insumos" element={<VerificacaoInsumos />} />
         <Route path="custos-fixos" element={<CustosFixos />} />
         <Route path="calculos" element={<Calculos />} />
         <Route
