@@ -7,26 +7,16 @@ import { Alerta, Carregando, ErroApiAlerta, Vazio } from "../componentes/ui";
 import { useResumo } from "../util/resumo";
 
 const FILTROS = [
-  { id: "todos", nome: "No cardápio" },
-  { id: "PREJUIZO", nome: "Prejuízo" },
-  { id: "ABAIXO_DA_META", nome: "Abaixo da meta" },
-  { id: "RENTAVEL", nome: "Dão lucro" },
-  { id: "pendentes", nome: "Sem preço ou receita" },
+  { id: "ativos", nome: "No cardápio" },
   { id: "inativos", nome: "Fora do cardápio" },
 ];
 
-function passa(filtro, item) {
-  if (filtro === "inativos") return !item.produto.ativo;
-  if (!item.produto.ativo) return false;
-  if (filtro === "todos") return true;
-  if (filtro === "pendentes") return ["SEM_PRECO", "SEM_RECEITA", "CONFIGURAR"].includes(item.situacao);
-  return item.situacao === filtro;
-}
+const passa = (filtro, item) => (filtro === "inativos" ? !item.produto.ativo : item.produto.ativo);
 
 export function Produtos() {
   const { gestor } = useAutenticacao();
   const { dados, erro, carregando, parametros } = useResumo();
-  const [filtro, setFiltro] = useState("todos");
+  const [filtro, setFiltro] = useState("ativos");
   const [texto, setTexto] = useState("");
   const [parametrosAbertos, setParametrosAbertos] = useState(false);
 
@@ -84,7 +74,7 @@ export function Produtos() {
               onChange={(e) => setTexto(e.target.value)}
             />
           </div>
-          <div className="abas" role="tablist" aria-label="Filtrar por situação">
+          <div className="abas" role="tablist" aria-label="Filtrar salgados">
             {FILTROS.map((f) => (
               <button
                 key={f.id}
@@ -120,7 +110,7 @@ export function Produtos() {
                   )
                 }
               >
-                Cadastre os ingredientes primeiro e depois monte a receita de cada salgado.
+                Cadastre o primeiro salgado e monte a receita: os ingredientes podem ser cadastrados ali mesmo.
               </Vazio>
             ) : (
               <Vazio titulo="Nada neste filtro">Troque o filtro ou a busca para ver outros salgados.</Vazio>

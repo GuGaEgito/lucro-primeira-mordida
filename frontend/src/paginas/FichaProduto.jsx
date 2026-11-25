@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { useAutenticacao } from "../auth/Autenticacao";
 import { rotas } from "../api/cliente";
 import { FileiraTijolos, partesDaAnalise, partesDoSugerido } from "../componentes/FileiraTijolos";
+import { FormIngrediente } from "../componentes/FormIngrediente";
 import { GavetaParametros } from "../componentes/Salgados";
 import {
   Alerta,
@@ -11,6 +12,7 @@ import {
   Carregando,
   Entrada,
   ErroApiAlerta,
+  Gaveta,
   Selo,
   useAvisar,
   useCarregar,
@@ -21,6 +23,9 @@ import { parametrosProntos, useParametros } from "../util/parametros";
 import { invalidarResumo, paramsApi } from "../util/resumo";
 
 const linhaVazia = () => ({ chave: Math.random().toString(36).slice(2), ingredienteId: "", quantidade: "", unidadeReceita: "" });
+
+// Na receita, quem compra por quilo ou litro costuma medir em gramas ou mililitros.
+const unidadePadrao = (unidade) => (unidade === "KG" ? "G" : unidade === "L" ? "ML" : unidade);
 
 function paraTexto(v) {
   if (v === null || v === undefined) return "";
@@ -35,6 +40,7 @@ export function FichaProduto({ novo = false }) {
   const [confirmar, elementoConfirmar] = useConfirmar();
   const [parametros] = useParametros();
   const [parametrosAbertos, setParametrosAbertos] = useState(false);
+  const [novoIngrediente, setNovoIngrediente] = useState(false);
 
   const ingredientes = useCarregar(() => rotas.ingredientes(), []);
   const custosFixos = useCarregar(() => rotas.custosFixos(), []);
@@ -147,13 +153,28 @@ export function FichaProduto({ novo = false }) {
         const nova = { ...l, [campo]: valor };
         if (campo === "ingredienteId") {
           const ing = porId.get(valor);
-          nova.unidadeReceita = ing ? (ing.unidade === "KG" ? "G" : ing.unidade === "L" ? "ML" : ing.unidade) : "";
+          nova.unidadeReceita = ing ? unidadePadrao(ing.unidade) : "";
         }
         return nova;
       }),
     );
 
+  // Ingrediente cadastrado aqui mesmo: entra na primeira linha vazia da receita (ou numa linha nova).
+  function ingredienteCriado(ing) {
+    setNovoIngrediente(false);
+    ingredientes.recarregar();
+    avisar(`${ing.nome} cadastrado`);
+    setLinhas((ls) => {
+      const linha = { ingredienteId: String(ing.id), unidadeReceita: unidadePadrao(ing.unidade) };
+      const vazia = ls.find((l) => !l.ingredienteId);
+      if (vazia) return ls.map((l) => (l.chave === vazia.chave ? { ...l, ...linha } : l));
+      return [...ls, { ...linhaVazia(), ...linha }];
+    });
+  }
+
   const usados = new Set(linhas.map((l) => l.ingredienteId).filter(Boolean));
+
+  const sugeridoAgora = calculo.sugerido && !calculo.sugerido.erro ? calculo.sugerido.precoSugerido : null;
 
   async function salvar(e) {
     e.preventDefault();
@@ -161,7 +182,6 @@ export function FichaProduto({ novo = false }) {
     const problemas = [];
     if (!form.nome.trim()) problemas.push("Dê um nome ao salgado.");
     if (!(rendimento > 0)) problemas.push("O rendimento precisa ser maior que zero.");
-    if (form.precoVenda.trim() && !(precoVenda >= 0)) problemas.push("O preço de venda está num formato inválido.");
     const incompletas = linhas.filter((l) => (l.ingredienteId || l.quantidade) && !linhasValidas.find((v) => v.chave === l.chave));
     if (incompletas.length) problemas.push("Há ingrediente sem quantidade (ou quantidade sem ingrediente) na receita.");
     if (problemas.length) {
@@ -172,7 +192,8 @@ export function FichaProduto({ novo = false }) {
       nome: form.nome.trim(),
       rendimento,
       ativo: form.ativo,
-      precoVenda: form.precoVenda.trim() ? Number(precoVenda.toFixed(2)) : novo ? undefined : null,
+      // O preço de venda não é mais digitado: no cadastro, o salgado já nasce com o preço sugerido.
+      ...(novo && sugeridoAgora && { precoVenda: Number(Number(sugeridoAgora).toFixed(2)) }),
       ingredientes: linhasValidas.map((l) => ({ ingredienteId: l.ing.id, quantidade: l.q, unidadeReceita: l.unidadeReceita })),
     };
     setSalvando(true);
@@ -269,15 +290,12 @@ export function FichaProduto({ novo = false }) {
                   <h2>O salgado</h2>
                 </div>
               </div>
-              <div className="grade-campos tres">
+              <div className="grade-campos duas">
                 <Campo rotulo="Nome">
                   <Entrada value={form.nome} onChange={mudar("nome")} maxLength={50} disabled={somenteLeitura} placeholder="Coxinha de frango" />
                 </Campo>
                 <Campo rotulo="A receita rende" ajuda="Quantos salgados saem dela.">
                   <Entrada sufixo="un" inputMode="decimal" value={form.rendimento} onChange={mudar("rendimento")} disabled={somenteLeitura} placeholder="40" />
-                </Campo>
-                <Campo rotulo="Preço de venda" ajuda="Deixe vazio para ver só o sugerido.">
-                  <Entrada prefixo="R$" inputMode="decimal" value={form.precoVenda} onChange={mudar("precoVenda")} disabled={somenteLeitura} placeholder="0,00" />
                 </Campo>
               </div>
               <label style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 16, fontSize: 14 }}>
@@ -312,8 +330,12 @@ export function FichaProduto({ novo = false }) {
                 <Carregando texto="Buscando ingredientes…" />
               ) : (ingredientes.dados || []).length === 0 ? (
                 <Alerta tipo="atencao" titulo="Ainda não há ingredientes">
-                  Cadastre os ingredientes primeiro, com o preço que você paga por eles.{" "}
-                  <Link to="/ingredientes">Ir para ingredientes</Link>
+                  Cadastre aqui mesmo o primeiro ingrediente, com o preço que você paga por ele.{" "}
+                  {!somenteLeitura && (
+                    <button type="button" className="botao pequeno" style={{ marginLeft: 8 }} onClick={() => setNovoIngrediente(true)}>
+                      <Plus size={16} aria-hidden="true" /> Novo ingrediente
+                    </button>
+                  )}
                 </Alerta>
               ) : (
                 <div className="linhas-receita">
@@ -382,10 +404,14 @@ export function FichaProduto({ novo = false }) {
                     );
                   })}
                   {!somenteLeitura && (
-                    <div>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                       <button type="button" className="botao fantasma pequeno" onClick={() => setLinhas((ls) => [...ls, linhaVazia()])}>
-                        <Plus size={16} aria-hidden="true" /> Adicionar ingrediente
+                        <Plus size={16} aria-hidden="true" /> Adicionar linha
                       </button>
+                      <button type="button" className="botao secundario pequeno" onClick={() => setNovoIngrediente(true)}>
+                        <Plus size={16} aria-hidden="true" /> Cadastrar ingrediente novo
+                      </button>
+                      <span style={{ fontSize: 13, color: "var(--tinta-3)" }}>Não achou na lista? Cadastre sem sair da receita.</span>
                     </div>
                   )}
                 </div>
@@ -463,16 +489,6 @@ export function FichaProduto({ novo = false }) {
                           <dd>{pct(calculo.pctFixo)}</dd>
                         </div>
                       </dl>
-                      {!somenteLeitura && sugerido && Number(sugerido) !== precoVenda && (
-                        <button
-                          type="button"
-                          className="botao secundario pequeno"
-                          style={{ marginTop: 14 }}
-                          onClick={() => setForm((f) => ({ ...f, precoVenda: paraTexto(Number(sugerido).toFixed(2)) }))}
-                        >
-                          Usar o preço sugerido ({reais(sugerido)})
-                        </button>
-                      )}
                     </>
                   )}
                 </>
@@ -493,6 +509,9 @@ export function FichaProduto({ novo = false }) {
       </form>
       {elementoConfirmar}
       <GavetaParametros aberta={parametrosAbertos} aoFechar={() => setParametrosAbertos(false)} />
+      <Gaveta titulo="Novo ingrediente" aberta={novoIngrediente} aoFechar={() => setNovoIngrediente(false)}>
+        {novoIngrediente && <FormIngrediente aoSalvar={ingredienteCriado} aoFechar={() => setNovoIngrediente(false)} />}
+      </Gaveta>
     </div>
   );
 }

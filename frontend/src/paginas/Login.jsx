@@ -2,11 +2,7 @@ import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { LogIn } from "lucide-react";
 import { useAutenticacao } from "../auth/Autenticacao";
-import { FileiraTijolos } from "../componentes/FileiraTijolos";
 import { Alerta, Campo, Entrada } from "../componentes/ui";
-
-// Exemplo do README do back: a coxinha que custa R$ 0,6025 e sai por R$ 1,10.
-const EXEMPLO = { preco: 1.1, ingredientes: 0.6025, fixo: 0.22, despesas: 0.11, lucro: 0.1675 };
 
 export function Login() {
   const { usuario, entrar, motivoSaida } = useAutenticacao();
@@ -40,20 +36,13 @@ export function Login() {
   return (
     <div className="tela-login">
       <section className="login-parede" aria-label="A Casa do Salgado">
-        <div>
+        <div className="login-marca">
           <span className="placa">Precificação e fichas técnicas</span>
           <h1>
             A Casa
             <br />
             do Salgado
           </h1>
-          <p>O custo de cada salgado, da receita ao preço de venda. Tijolo por tijolo.</p>
-        </div>
-        <div className="fileira-login">
-          <p className="rotulo">
-            Exemplo: <strong>Coxinha</strong> a R$ 1,10
-          </p>
-          <FileiraTijolos partes={EXEMPLO} grande />
         </div>
       </section>
 

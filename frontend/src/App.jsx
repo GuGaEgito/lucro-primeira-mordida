@@ -7,9 +7,7 @@ import { Painel } from "./paginas/Painel";
 import { Produtos } from "./paginas/Produtos";
 import { FichaProduto } from "./paginas/FichaProduto";
 import { VerificacaoInsumos } from "./paginas/VerificacaoInsumos";
-import { Ingredientes } from "./paginas/Ingredientes";
 import { CustosFixos } from "./paginas/CustosFixos";
-import { Calculos } from "./paginas/Calculos";
 import { Usuarios } from "./paginas/Usuarios";
 import { NaoEncontrada } from "./paginas/NaoEncontrada";
 
@@ -20,6 +18,13 @@ function Protegida({ children, soGestor = false }) {
   if (!usuario) return <Navigate to="/entrar" replace state={{ de: local.pathname + local.search }} />;
   if (soGestor && !gestor) return <Navigate to="/" replace />;
   return children;
+}
+
+// Primeira tela depois do login: o gestor começa pelos custos fixos;
+// o funcionário, que só consulta, começa pelo painel.
+function Inicio() {
+  const { gestor } = useAutenticacao();
+  return <Navigate to={gestor ? "/custos-fixos" : "/painel"} replace />;
 }
 
 export function App() {
@@ -33,14 +38,13 @@ export function App() {
           </Protegida>
         }
       >
-        <Route index element={<Painel />} />
+        <Route index element={<Inicio />} />
+        <Route path="painel" element={<Painel />} />
         <Route path="produtos" element={<Produtos />} />
         <Route path="produtos/novo" element={<FichaProduto novo />} />
         <Route path="produtos/:id" element={<FichaProduto />} />
-        <Route path="ingredientes" element={<Ingredientes />} />
         <Route path="verificacao-insumos" element={<VerificacaoInsumos />} />
         <Route path="custos-fixos" element={<CustosFixos />} />
-        <Route path="calculos" element={<Calculos />} />
         <Route
           path="usuarios"
           element={

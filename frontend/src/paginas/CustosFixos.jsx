@@ -14,12 +14,15 @@ import {
   useCarregar,
   useConfirmar,
 } from "../componentes/ui";
-import { data, lerNumero, pct, reais, reaisFino } from "../util/formato";
+import { lerNumero, pct, reais } from "../util/formato";
 import { parametrosProntos, useParametros } from "../util/parametros";
 import { invalidarResumo, paramsApi } from "../util/resumo";
 
-function FormCusto({ inicial, aoSalvar, aoFechar }) {
-  const [nome, setNome] = useState(inicial?.nome || "");
+// Contas que quase toda loja tem: viram atalhos para cadastrar com um clique.
+const SUGESTOES = ["Aluguel", "Luz", "Água", "Gás", "Salários", "Internet"];
+
+function FormCusto({ inicial, nomeInicial = "", aoSalvar, aoFechar }) {
+  const [nome, setNome] = useState(inicial?.nome || nomeInicial);
   const [valor, setValor] = useState(inicial ? String(Number(inicial.valorMensal)).replace(".", ",") : "");
   const [erro, setErro] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -27,15 +30,15 @@ function FormCusto({ inicial, aoSalvar, aoFechar }) {
   async function enviar(e) {
     e.preventDefault();
     const v = lerNumero(valor);
-    if (!nome.trim()) return setErro({ message: "Dê um nome ao custo, por exemplo Aluguel." });
-    if (!(v >= 0)) return setErro({ message: "Informe o valor do mês com números, por exemplo 1500." });
+    if (!nome.trim()) return setErro({ message: "Escreva o nome da conta, por exemplo Aluguel." });
+    if (!(v >= 0)) return setErro({ message: "Escreva o valor só com números, por exemplo 1500." });
     setSalvando(true);
     setErro(null);
     try {
       const corpo = { nome: nome.trim(), valorMensal: v };
       if (inicial) await rotas.alterarCustoFixo(inicial.id, corpo);
       else await rotas.criarCustoFixo(corpo);
-      aoSalvar(inicial ? "Custo fixo atualizado" : "Custo fixo cadastrado");
+      aoSalvar(inicial ? "Conta atualizada" : "Conta adicionada");
     } catch (err) {
       setErro(err);
     } finally {
@@ -46,10 +49,10 @@ function FormCusto({ inicial, aoSalvar, aoFechar }) {
   return (
     <form onSubmit={enviar} className="grade-campos" noValidate>
       <ErroApiAlerta erro={erro} />
-      <Campo rotulo="Nome">
+      <Campo rotulo="Nome da conta">
         <Entrada value={nome} onChange={(e) => setNome(e.target.value)} maxLength={50} placeholder="Aluguel" />
       </Campo>
-      <Campo rotulo="Valor por mês">
+      <Campo rotulo="Quanto paga por mês">
         <Entrada prefixo="R$" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="1500,00" />
       </Campo>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
@@ -57,7 +60,63 @@ function FormCusto({ inicial, aoSalvar, aoFechar }) {
           Cancelar
         </button>
         <button type="submit" className="botao" disabled={salvando}>
-          {salvando ? "Salvando…" : inicial ? "Salvar" : "Cadastrar"}
+          {salvando ? "Salvando…" : inicial ? "Salvar" : "Adicionar"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// Pergunta direta: quanto a loja vende por mês. É o que divide as contas entre os salgados.
+function VendasDoMes({ podeEditar, aoAbrirMais }) {
+  const [parametros, salvar] = useParametros();
+  const [texto, setTexto] = useState(parametros.faturamentoMensal || "");
+  const [editando, setEditando] = useState(!parametrosProntos(parametros));
+  const [erro, setErro] = useState(null);
+  const avisar = useAvisar();
+
+  useEffect(() => {
+    setTexto(parametros.faturamentoMensal || "");
+    setEditando(!parametrosProntos(parametros));
+  }, [parametros]);
+
+  function enviar(e) {
+    e.preventDefault();
+    const v = lerNumero(texto);
+    if (!(v > 0)) return setErro("Escreva quanto a loja vende por mês, só com números, por exemplo 10000.");
+    setErro(null);
+    salvar({ faturamentoMensal: String(v) });
+    invalidarResumo();
+    avisar("Vendas do mês salvas");
+    setEditando(false);
+  }
+
+  if (!editando)
+    return (
+      <p className="sub">
+        A loja vende cerca de <strong className="num">{reais(paramsApi(parametros).faturamentoMensal)}</strong> por mês.{" "}
+        {podeEditar && (
+          <button type="button" className="link-botao" onClick={() => setEditando(true)}>
+            Mudar
+          </button>
+        )}
+      </p>
+    );
+
+  if (!podeEditar)
+    return <p className="sub">O gestor ainda não informou quanto a loja vende por mês.</p>;
+
+  return (
+    <form onSubmit={enviar} className="vendas-mes" noValidate>
+      <Campo rotulo="Quanto a loja vende por mês?" ajuda="Um valor aproximado já serve." erro={erro}>
+        <Entrada prefixo="R$" inputMode="decimal" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="10000" />
+      </Campo>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <button type="submit" className="botao">
+          Salvar
+        </button>
+        <button type="button" className="link-botao" onClick={aoAbrirMais}>
+          Mais opções
         </button>
       </div>
     </form>
@@ -70,38 +129,15 @@ export function CustosFixos() {
   const [confirmar, elementoConfirmar] = useConfirmar();
   const [parametros] = useParametros();
   const lista = useCarregar(() => rotas.custosFixos(), []);
-  const [editando, setEditando] = useState(null);
-  const [parametrosAbertos, setParametrosAbertos] = useState(false);
-  const [producao, setProducao] = useState("");
-  const [peso, setPeso] = useState(null);
+  const [editando, setEditando] = useState(null); // null | { novo: true, nome } | custo
+  const [maisOpcoes, setMaisOpcoes] = useState(false);
 
   const itens = lista.dados?.itens || [];
   const total = Number(lista.dados?.totalMensal || 0);
-
-  useEffect(() => {
-    if (!lista.dados || itens.length === 0) {
-      setPeso(null);
-      return;
-    }
-    const prod = lerNumero(producao);
-    const corpo = {
-      custos: itens.map((c) => ({ nome: c.nome, valorMensal: c.valorMensal })),
-      ...(parametrosProntos(parametros) && { faturamentoMensal: paramsApi(parametros).faturamentoMensal }),
-      ...(prod > 0 && { producaoMensal: prod }),
-    };
-    let vivo = true;
-    const t = setTimeout(() => {
-      rotas
-        .calc("custos-fixos", corpo)
-        .then((r) => vivo && setPeso(r))
-        .catch(() => vivo && setPeso(null));
-    }, 300);
-    return () => {
-      vivo = false;
-      clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lista.dados, producao, parametros]);
+  const vendas = parametrosProntos(parametros) ? Number(paramsApi(parametros).faturamentoMensal) : 0;
+  const parte = vendas > 0 ? (total / vendas) * 100 : null;
+  const jaTem = new Set(itens.map((c) => c.nome.trim().toLowerCase()));
+  const sugestoes = SUGESTOES.filter((s) => !jaTem.has(s.toLowerCase()));
 
   const recarregarTudo = (msg) => {
     setEditando(null);
@@ -109,6 +145,8 @@ export function CustosFixos() {
     invalidarResumo();
     avisar(msg);
   };
+
+  const novo = (nome = "") => setEditando({ novo: true, nome });
 
   return (
     <div className="pagina">
@@ -118,11 +156,14 @@ export function CustosFixos() {
             <h1>
               <b>Custos fixos</b> do mês
             </h1>
-            <p>O que a loja paga todo mês, vendendo ou não: aluguel, energia, gás, salários. Entra no preço de cada salgado.</p>
+            <p>
+              São as contas que a loja paga todo mês, vendendo ou não. Cadastre aqui e o sistema já coloca esse valor no
+              preço de cada salgado.
+            </p>
           </div>
           {gestor && (
-            <button type="button" className="botao" onClick={() => setEditando("novo")}>
-              <Plus size={18} aria-hidden="true" /> Novo custo
+            <button type="button" className="botao" onClick={() => novo()}>
+              <Plus size={18} aria-hidden="true" /> Adicionar conta
             </button>
           )}
         </div>
@@ -137,137 +178,87 @@ export function CustosFixos() {
               </div>
             ) : itens.length === 0 ? (
               <Vazio
-                titulo="Nenhum custo fixo"
+                titulo="Nenhuma conta cadastrada ainda"
                 acao={
                   gestor && (
-                    <button type="button" className="botao" onClick={() => setEditando("novo")}>
-                      Cadastrar o primeiro
+                    <button type="button" className="botao" onClick={() => novo()}>
+                      Adicionar a primeira conta
                     </button>
                   )
                 }
               >
-                Sem custos fixos, o preço sugerido fica mais baixo do que deveria.
+                Comece pelas contas maiores, como aluguel, luz e salários.
               </Vazio>
             ) : (
-              <div className="tabela-envolve">
-                <table className="tabela num">
-                  <thead>
-                    <tr>
-                      <th>Custo</th>
-                      <th className="direita">Por mês</th>
-                      <th style={{ width: "30%" }}>Parte do total</th>
-                      <th>Atualizado</th>
-                      {gestor && (
-                        <th>
-                          <span className="oculto">Ações</span>
-                        </th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {itens.map((c) => {
-                      const parte = total > 0 ? (Number(c.valorMensal) / total) * 100 : 0;
-                      return (
-                        <tr key={c.id}>
-                          <td>
-                            <strong>{c.nome}</strong>
-                          </td>
-                          <td className="direita">{reais(c.valorMensal)}</td>
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <div style={{ flex: 1, height: 10, background: "var(--rejunte)", borderRadius: 3, padding: 2 }}>
-                                <div style={{ width: `${parte}%`, height: "100%", background: "var(--parte-fixo)", borderRadius: 2 }} />
-                              </div>
-                              <span style={{ fontSize: 12.5, minWidth: 44, textAlign: "right" }}>{pct(parte.toFixed(1))}</span>
-                            </div>
-                          </td>
-                          <td>{data(c.atualizadoEm)}</td>
-                          {gestor && (
-                            <td>
-                              <div className="acoes-linha">
-                                <button type="button" className="botao-icone" aria-label={`Editar ${c.nome}`} onClick={() => setEditando(c)}>
-                                  <Pencil size={16} />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="botao-icone perigo"
-                                  aria-label={`Apagar ${c.nome}`}
-                                  onClick={() =>
-                                    confirmar({
-                                      titulo: `Apagar ${c.nome}?`,
-                                      texto: "O custo sai da conta do mês e os preços sugeridos de todos os salgados mudam.",
-                                      acao: async () => {
-                                        await rotas.apagarCustoFixo(c.id);
-                                        recarregarTudo("Custo fixo apagado");
-                                      },
-                                    })
-                                  }
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td>Total do mês</td>
-                      <td className="direita">{reais(total)}</td>
-                      <td colSpan={gestor ? 3 : 2} />
-                    </tr>
-                  </tfoot>
-                </table>
+              <ul className="lista-contas num">
+                {itens.map((c) => (
+                  <li key={c.id}>
+                    <strong>{c.nome}</strong>
+                    <span className="valor">{reais(c.valorMensal)}</span>
+                    {gestor && (
+                      <div className="acoes-linha">
+                        <button type="button" className="botao-icone" aria-label={`Editar ${c.nome}`} onClick={() => setEditando(c)}>
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="botao-icone perigo"
+                          aria-label={`Apagar ${c.nome}`}
+                          onClick={() =>
+                            confirmar({
+                              titulo: `Apagar ${c.nome}?`,
+                              texto: "A conta sai do total do mês e o preço dos salgados é recalculado.",
+                              acao: async () => {
+                                await rotas.apagarCustoFixo(c.id);
+                                recarregarTudo("Conta apagada");
+                              },
+                            })
+                          }
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+                <li className="total">
+                  <strong>Total por mês</strong>
+                  <span className="valor">{reais(total)}</span>
+                  {gestor && <span />}
+                </li>
+              </ul>
+            )}
+
+            {gestor && sugestoes.length > 0 && !lista.erro && lista.dados && (
+              <div className="sugestoes-contas">
+                <span>Adicionar rápido:</span>
+                {sugestoes.map((s) => (
+                  <button key={s} type="button" className="chip" onClick={() => novo(s)}>
+                    <Plus size={14} aria-hidden="true" /> {s}
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
           <aside className="superficie bloco">
-            <h2>O peso no preço</h2>
-            <p className="sub">Quanto os custos fixos representam do que a loja vende.</p>
-            <dl className="lista-valores num" style={{ marginTop: 16 }}>
-              <div className="total">
-                <dt>Total por mês</dt>
-                <dd>{reais(total)}</dd>
-              </div>
-              <div>
-                <dt>Sobre o faturamento</dt>
-                <dd>
-                  {peso?.percentualSobreFaturamento != null ? (
-                    pct(peso.percentualSobreFaturamento)
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setParametrosAbertos(true)}
-                      style={{ all: "unset", cursor: "pointer", color: "var(--tijolo)", textDecoration: "underline" }}
-                    >
-                      Informar faturamento
-                    </button>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Por salgado produzido</dt>
-                <dd>{peso?.porUnidade != null ? reaisFino(peso.porUnidade) : "—"}</dd>
-              </div>
-            </dl>
-            <div style={{ marginTop: 16 }}>
-              <Campo rotulo="Salgados produzidos no mês" ajuda="Opcional: para ver o custo fixo por unidade.">
-                <Entrada inputMode="numeric" sufixo="un" value={producao} onChange={(e) => setProducao(e.target.value)} placeholder="4000" />
-              </Campo>
+            <h2>Resumo</h2>
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 13.5, color: "var(--tinta-2)" }}>Contas fixas por mês</div>
+              <div className="resultado-grande num">{reais(total)}</div>
             </div>
-            {parametrosProntos(parametros) && (
-              <p className="sub" style={{ marginTop: 14 }}>
-                Faturamento usado: <strong className="num">{reais(paramsApi(parametros).faturamentoMensal)}</strong>.{" "}
-                <button
-                  type="button"
-                  onClick={() => setParametrosAbertos(true)}
-                  style={{ all: "unset", cursor: "pointer", color: "var(--tijolo)", textDecoration: "underline" }}
-                >
-                  Mudar
-                </button>
+            {parte !== null && total > 0 && (
+              <p className="sub" style={{ marginTop: 10 }}>
+                De cada R$ 100 que a loja vende, <strong className="num">{reais(parte)}</strong> vão para essas contas (
+                {pct(parte.toFixed(1))}).
+              </p>
+            )}
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--rejunte)" }}>
+              <VendasDoMes podeEditar={gestor} aoAbrirMais={() => setMaisOpcoes(true)} />
+            </div>
+            {!gestor && (
+              <p className="sub" style={{ marginTop: 14, fontSize: 13 }}>
+                Só o gestor pode mudar estas contas.
               </p>
             )}
           </aside>
@@ -275,20 +266,21 @@ export function CustosFixos() {
       </div>
 
       <Gaveta
-        titulo={editando === "novo" ? "Novo custo fixo" : `Editar ${editando?.nome || ""}`}
+        titulo={editando?.novo ? "Adicionar conta" : `Editar ${editando?.nome || ""}`}
         aberta={Boolean(editando)}
         aoFechar={() => setEditando(null)}
       >
         {editando && (
           <FormCusto
-            key={editando === "novo" ? "novo" : editando.id}
-            inicial={editando === "novo" ? null : editando}
+            key={editando.novo ? `novo-${editando.nome}` : editando.id}
+            inicial={editando.novo ? null : editando}
+            nomeInicial={editando.novo ? editando.nome : ""}
             aoFechar={() => setEditando(null)}
             aoSalvar={recarregarTudo}
           />
         )}
       </Gaveta>
-      <GavetaParametros aberta={parametrosAbertos} aoFechar={() => setParametrosAbertos(false)} />
+      <GavetaParametros aberta={maisOpcoes} aoFechar={() => setMaisOpcoes(false)} />
       {elementoConfirmar}
     </div>
   );

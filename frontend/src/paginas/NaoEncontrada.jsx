@@ -10,11 +10,11 @@ export function NaoEncontrada() {
             titulo="Esta página saiu do forno e não voltou"
             acao={
               <Link to="/" className="botao">
-                Voltar para o painel
+                Voltar para o início
               </Link>
             }
           >
-            O endereço não existe. Confira o link ou volte para o painel.
+            O endereço não existe. Confira o link ou volte para o início.
           </Vazio>
         </div>
       </div>

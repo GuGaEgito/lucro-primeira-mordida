@@ -600,6 +600,11 @@ main {
   padding-top: 56px;
   padding-bottom: 56px;
 }
+.abertura.abertura-simples .conteiner {
+  display: block;
+  padding-top: 40px;
+  padding-bottom: 40px;
+}
 .abertura h1 {
   font-size: clamp(40px, 5.4vw, 72px);
   line-height: 1.02;
@@ -1436,9 +1441,16 @@ table.tabela {
   padding: 56px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
   position: relative;
   overflow: hidden;
+}
+.login-parede .login-marca {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 120px; /* desconta a faixa verde do pé, para o nome ficar no meio da parede */
 }
 .login-parede::after {
   content: "";
@@ -1475,32 +1487,6 @@ table.tabela {
   margin-top: 20px;
   color: #f6d7ca;
 }
-.login-parede .fileira-login {
-  position: relative;
-  z-index: 1;
-  margin-bottom: 140px;
-  background: rgba(42, 25, 21, 0.35);
-  padding: 18px;
-  border-radius: var(--raio);
-  max-width: 440px;
-}
-.login-parede .fileira-login .legenda {
-  color: #f6d7ca;
-}
-.login-parede .fileira-login .legenda b {
-  color: #fff;
-}
-.login-parede .fileira-login .rotulo {
-  font-size: 13px;
-  color: #f6d7ca;
-  margin-bottom: 12px;
-}
-.login-parede .fileira-login .rotulo strong {
-  color: #fff;
-  font-family: var(--serifa);
-  font-weight: 400;
-  font-size: 18px;
-}
 .login-form {
   display: grid;
   place-items: center;
@@ -1528,6 +1514,83 @@ table.tabela {
   font-size: 13px;
   color: var(--tinta-3);
   text-align: center;
+}
+
+/* ---------- Custos fixos (lista simples) ---------- */
+
+.lista-contas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lista-contas li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rejunte);
+  font-size: 15.5px;
+}
+.lista-contas li strong {
+  font-weight: 600;
+}
+.lista-contas .valor {
+  text-align: right;
+  min-width: 110px;
+}
+.lista-contas .acoes-linha {
+  display: flex;
+  gap: 2px;
+}
+.lista-contas li.total {
+  background: var(--reboco);
+  border-bottom: 0;
+  font-weight: 650;
+}
+.sugestoes-contas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--rejunte);
+  font-size: 13.5px;
+  color: var(--tinta-2);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--rejunte-forte);
+  background: var(--balcao);
+  color: var(--tinta);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.chip:hover {
+  border-color: var(--tijolo);
+  color: var(--tijolo);
+}
+.chip:focus-visible,
+.link-botao:focus-visible {
+  outline: 2px solid var(--tijolo);
+  outline-offset: 2px;
+}
+.link-botao {
+  all: unset;
+  cursor: pointer;
+  color: var(--tijolo);
+  text-decoration: underline;
+}
+.vendas-mes {
+  display: grid;
+  gap: 12px;
 }
 
 /* ---------- Ficha técnica ---------- */
@@ -1678,7 +1741,7 @@ table.tabela {
 }
 .rodape .conteiner {
   display: grid;
-  grid-template-columns: 1.4fr repeat(3, 1fr);
+  grid-template-columns: 1.4fr repeat(2, 1fr);
   gap: 40px;
 }
 .rodape h2 {
@@ -1779,11 +1842,7 @@ table.tabela {
   .login-parede {
     padding: 36px 28px;
   }
-  .login-parede .fileira-login {
-    margin-bottom: 130px;
-    margin-top: 28px;
-  }
-  .rodape .conteiner {
+    .rodape .conteiner {
     grid-template-columns: 1fr 1fr;
   }
   .trilho {

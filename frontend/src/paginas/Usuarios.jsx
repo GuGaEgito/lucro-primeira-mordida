@@ -40,7 +40,7 @@ function FormUsuario({ aoSalvar, aoFechar }) {
       <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 8 }}>
         <legend style={{ fontSize: 13, fontWeight: 600, color: "var(--tinta-2)", marginBottom: 6 }}>Cargo</legend>
         {[
-          { v: "FUNCIONARIO", t: "Funcionário", d: "Consulta ingredientes e salgados e usa os cálculos." },
+          { v: "FUNCIONARIO", t: "Funcionário", d: "Consulta o painel, os salgados e os custos fixos." },
           { v: "GESTOR", t: "Gestor", d: "Também cadastra, altera e apaga, e cuida dos usuários." },
         ].map((o) => (
           <label key={o.v} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 14, cursor: "pointer" }}>
