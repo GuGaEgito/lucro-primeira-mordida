@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
 import { useAutenticacao } from "../auth/Autenticacao";
 import { rotas } from "../api/cliente";
 import { FileiraTijolos, partesDaAnalise, partesDoSugerido } from "../componentes/FileiraTijolos";
@@ -41,6 +41,8 @@ export function FichaProduto({ novo = false }) {
   const [parametros] = useParametros();
   const [parametrosAbertos, setParametrosAbertos] = useState(false);
   const [novoIngrediente, setNovoIngrediente] = useState(false);
+  const [editarInsumo, setEditarInsumo] = useState(false);
+  const [insumoEscolhido, setInsumoEscolhido] = useState("");
 
   const ingredientes = useCarregar(() => rotas.ingredientes(), []);
   const custosFixos = useCarregar(() => rotas.custosFixos(), []);
@@ -170,6 +172,21 @@ export function FichaProduto({ novo = false }) {
       if (vazia) return ls.map((l) => (l.chave === vazia.chave ? { ...l, ...linha } : l));
       return [...ls, { ...linhaVazia(), ...linha }];
     });
+  }
+
+  // Insumo editado aqui mesmo: o novo preço já entra no cálculo de todas as receitas que usam ele.
+  function insumoAlterado(ing) {
+    setEditarInsumo(false);
+    setInsumoEscolhido("");
+    ingredientes.recarregar();
+    invalidarResumo();
+    avisar(`${ing.nome} atualizado`);
+  }
+
+  function abrirEditarInsumo() {
+    // Já abre no primeiro ingrediente da receita, se houver um escolhido.
+    setInsumoEscolhido(linhas.find((l) => l.ingredienteId)?.ingredienteId || "");
+    setEditarInsumo(true);
   }
 
   const usados = new Set(linhas.map((l) => l.ingredienteId).filter(Boolean));
@@ -411,7 +428,10 @@ export function FichaProduto({ novo = false }) {
                       <button type="button" className="botao secundario pequeno" onClick={() => setNovoIngrediente(true)}>
                         <Plus size={16} aria-hidden="true" /> Cadastrar ingrediente novo
                       </button>
-                      <span style={{ fontSize: 13, color: "var(--tinta-3)" }}>Não achou na lista? Cadastre sem sair da receita.</span>
+                      <button type="button" className="botao secundario pequeno" onClick={abrirEditarInsumo}>
+                        <Pencil size={16} aria-hidden="true" /> Editar insumo
+                      </button>
+                      <span style={{ fontSize: 13, color: "var(--tinta-3)" }}>Não achou na lista ou o preço mudou? Resolva sem sair da receita.</span>
                     </div>
                   )}
                 </div>
@@ -511,6 +531,36 @@ export function FichaProduto({ novo = false }) {
       <GavetaParametros aberta={parametrosAbertos} aoFechar={() => setParametrosAbertos(false)} />
       <Gaveta titulo="Novo ingrediente" aberta={novoIngrediente} aoFechar={() => setNovoIngrediente(false)}>
         {novoIngrediente && <FormIngrediente aoSalvar={ingredienteCriado} aoFechar={() => setNovoIngrediente(false)} />}
+      </Gaveta>
+      <Gaveta titulo="Editar insumo" aberta={editarInsumo} aoFechar={() => setEditarInsumo(false)}>
+        {editarInsumo && (
+          <div className="grade-campos">
+            <Campo rotulo="Qual insumo" ajuda="O preço novo vale para todos os salgados que usam esse insumo.">
+              <select className="entrada" value={insumoEscolhido} onChange={(e) => setInsumoEscolhido(e.target.value)}>
+                <option value="">Escolha…</option>
+                {(ingredientes.dados || []).map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.nome} ({reaisFino(g.custoUnitario)}/{rotuloUnidade(g.unidade)})
+                  </option>
+                ))}
+              </select>
+            </Campo>
+            {porId.get(insumoEscolhido) ? (
+              <FormIngrediente
+                key={insumoEscolhido}
+                ingrediente={porId.get(insumoEscolhido)}
+                aoSalvar={insumoAlterado}
+                aoFechar={() => setEditarInsumo(false)}
+              />
+            ) : (
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button type="button" className="botao fantasma" onClick={() => setEditarInsumo(false)}>
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </Gaveta>
     </div>
   );

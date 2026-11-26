@@ -3,12 +3,19 @@ import { rotas } from "../api/cliente";
 import { Campo, Entrada, ErroApiAlerta } from "./ui";
 import { lerNumero, rotuloUnidade, UNIDADES } from "../util/formato";
 
+function paraTexto(v) {
+  if (v === null || v === undefined || v === "") return "";
+  return String(v).replace(".", ",");
+}
+
 // Cadastro rápido de ingrediente, aberto de dentro da receita do salgado.
 // Devolve o ingrediente criado em aoSalvar, para a receita já usar ele.
-export function FormIngrediente({ nomeInicial = "", aoSalvar, aoFechar }) {
-  const [nome, setNome] = useState(nomeInicial);
-  const [unidade, setUnidade] = useState("KG");
-  const [custo, setCusto] = useState("");
+// Com `ingrediente`, o formulário edita esse insumo (nome e preço) em vez de criar um novo.
+export function FormIngrediente({ nomeInicial = "", ingrediente = null, aoSalvar, aoFechar }) {
+  const editando = Boolean(ingrediente);
+  const [nome, setNome] = useState(ingrediente?.nome ?? nomeInicial);
+  const [unidade, setUnidade] = useState(ingrediente?.unidade ?? "KG");
+  const [custo, setCusto] = useState(editando ? paraTexto(Number(ingrediente.custoUnitario)) : "");
   const [erro, setErro] = useState(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -20,8 +27,10 @@ export function FormIngrediente({ nomeInicial = "", aoSalvar, aoFechar }) {
     setSalvando(true);
     setErro(null);
     try {
-      const criado = await rotas.criarIngrediente({ nome: nome.trim(), unidade, custoUnitario: valor });
-      aoSalvar(criado);
+      const salvo = editando
+        ? await rotas.alterarIngrediente(ingrediente.id, { nome: nome.trim(), custoUnitario: valor })
+        : await rotas.criarIngrediente({ nome: nome.trim(), unidade, custoUnitario: valor });
+      aoSalvar(salvo);
     } catch (err) {
       setErro(err);
     } finally {
@@ -36,8 +45,11 @@ export function FormIngrediente({ nomeInicial = "", aoSalvar, aoFechar }) {
         <Entrada value={nome} onChange={(e) => setNome(e.target.value)} maxLength={50} placeholder="Farinha de trigo" />
       </Campo>
       <div className="grade-campos duas">
-        <Campo rotulo="Como você compra" ajuda="A unidade que vem na nota.">
-          <select className="entrada" value={unidade} onChange={(e) => setUnidade(e.target.value)}>
+        <Campo
+          rotulo="Como você compra"
+          ajuda={editando ? "A unidade não muda depois do cadastro, para não quebrar as receitas." : "A unidade que vem na nota."}
+        >
+          <select className="entrada" value={unidade} onChange={(e) => setUnidade(e.target.value)} disabled={editando}>
             {UNIDADES.map((u) => (
               <option key={u.valor} value={u.valor}>
                 {u.nome}
@@ -54,7 +66,7 @@ export function FormIngrediente({ nomeInicial = "", aoSalvar, aoFechar }) {
           Cancelar
         </button>
         <button type="submit" className="botao" disabled={salvando}>
-          {salvando ? "Salvando…" : "Cadastrar ingrediente"}
+          {salvando ? "Salvando…" : editando ? "Salvar insumo" : "Cadastrar ingrediente"}
         </button>
       </div>
     </form>
