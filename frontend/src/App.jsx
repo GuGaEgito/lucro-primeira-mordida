@@ -20,11 +20,9 @@ function Protegida({ children, soGestor = false }) {
   return children;
 }
 
-// Primeira tela depois do login: o gestor começa pelos custos fixos;
-// o funcionário, que só consulta, começa pelo painel.
+// Primeira tela depois do login: todo mundo (gestor e funcionário) começa pelo painel.
 function Inicio() {
-  const { gestor } = useAutenticacao();
-  return <Navigate to={gestor ? "/custos-fixos" : "/painel"} replace />;
+  return <Navigate to="/painel" replace />;
 }
 
 export function App() {
